@@ -1,0 +1,12 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/drip-send",
+      "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/cron/contact-later-check",
+      "schedule": "0 7 * * *"
+    }
+  ]
+}
