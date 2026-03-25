@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createServiceClient } from "@/lib/supabase/server";
 import Sidebar from "./sidebar";
 
 export default async function DashboardLayout({
@@ -15,7 +15,8 @@ export default async function DashboardLayout({
 
   if (!user) redirect("/login");
 
-  const { data: member } = await supabase
+  const svc = createServiceClient();
+  const { data: member } = await svc
     .from("org_members")
     .select("role, full_name")
     .eq("user_id", user.id)

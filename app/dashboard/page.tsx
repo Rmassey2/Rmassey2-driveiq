@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createServiceClient } from "@/lib/supabase/server";
 
 export default async function DashboardHome() {
   const supabase = createClient();
@@ -7,7 +7,8 @@ export default async function DashboardHome() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const { data: member } = await supabase
+  const svc = createServiceClient();
+  const { data: member } = await svc
     .from("org_members")
     .select("role, full_name")
     .eq("user_id", user!.id)
