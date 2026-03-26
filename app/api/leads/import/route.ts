@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import * as XLSX from "xlsx";
 import { normalizePhone } from "@/lib/utils";
 import { findDuplicateLead, checkDNH } from "@/lib/dedup";
+import { scheduleCheckins } from "@/lib/checkin-scheduler";
 
 function svc() {
   return createClient(
@@ -84,6 +85,10 @@ function mapStatus(status: string): { disposition: string; coldFlag: boolean } {
   }
   if (s.includes("recruiting") || s.includes("attempting") || s.includes("wants local") || s.includes("new lead") || s.includes("pending")) {
     return { disposition: "active", coldFlag: false };
+  }
+  // Active/employed/current drivers → hired
+  if (s === "active" || s === "employed" || s === "current" || s === "driver") {
+    return { disposition: "hired", coldFlag: false };
   }
   if (s.includes("hired") || s.includes("orientation")) {
     return { disposition: "hired", coldFlag: false };
@@ -197,6 +202,7 @@ export async function POST(req: NextRequest) {
   let updated = 0;
   let skipped = 0;
   let dnhBlocked = 0;
+  let hiredCount = 0;
   const skipReasons: Record<string, number> = {};
 
   function skip(reason: string) {
@@ -228,9 +234,11 @@ export async function POST(req: NextRequest) {
     const statusRaw = col(row, "Status");
     const source = col(row, "Source");
     const cdlNumber = col(row, "CDL Number", "CDL", "CDL#", "CDL Num");
-    const worklist = col(row, "Worklist", "Work List");
+    const worklist = col(row, "Worklist", "Work List", "Driver Type");
     const recruiterName = col(row, "Recruiter");
     const dob = col(row, "DOB", "Date of Birth", "Birth Date");
+    const hireDateRaw = col(row, "Hire Date", "Employment Date", "Date Hired");
+    const truckNumber = col(row, "Truck Number", "Unit", "Truck #", "Truck No");
 
     if (!phone && !email) {
       skip("no_phone_or_email");
@@ -275,6 +283,8 @@ export async function POST(req: NextRequest) {
     if (dob) noteParts.push(`DOB: ${dob}`);
     const notes = noteParts.length > 0 ? noteParts.join("; ") : null;
 
+    let leadId: string | null = null;
+
     if (dup.existingId) {
       const updateFields: Record<string, unknown> = {};
       if (applicantId) updateFields.tenstreet_applicant_id = applicantId;
@@ -283,16 +293,18 @@ export async function POST(req: NextRequest) {
       if (segment) updateFields.segment_interest = segment;
       if (recruiterId) updateFields.recruiter_id = recruiterId;
       if (notes) updateFields.notes = notes;
+      if (disposition) updateFields.disposition = disposition;
       updateFields.updated_at = new Date().toISOString();
 
       await supabase
         .from("driver_leads")
         .update(updateFields)
         .eq("id", dup.existingId);
+      leadId = dup.existingId;
       updated++;
     } else {
       const fullName = `${firstName} ${lastName}`.trim();
-      await supabase.from("driver_leads").insert({
+      const { data: newLead } = await supabase.from("driver_leads").insert({
         org_id: org.id,
         full_name: fullName || "Unknown",
         phone: phone || null,
@@ -310,8 +322,42 @@ export async function POST(req: NextRequest) {
         cold_flag: coldFlag,
         do_not_hire: false,
         notes,
-      });
+      }).select("id").single();
+      leadId = newLead?.id ?? null;
       created++;
+    }
+
+    // Auto-create hired_drivers + schedule check-ins for hired disposition
+    if (disposition === "hired" && leadId) {
+      // Check if hired_drivers record already exists
+      const { data: existingHired } = await supabase
+        .from("hired_drivers")
+        .select("id")
+        .eq("lead_id", leadId)
+        .maybeSingle();
+
+      if (!existingHired) {
+        const hireDate = hireDateRaw || new Date().toISOString().split("T")[0];
+        const { data: hired } = await supabase
+          .from("hired_drivers")
+          .insert({
+            org_id: org.id,
+            lead_id: leadId,
+            hire_date: hireDate,
+            segment: segment ?? null,
+            truck_number: truckNumber || null,
+            status: "active",
+            retention_risk_score: 0,
+            active_flags: [],
+          })
+          .select("id")
+          .single();
+
+        if (hired) {
+          await scheduleCheckins(supabase, org.id, hired.id, hireDate);
+          hiredCount++;
+        }
+      }
     }
   }
 
@@ -330,6 +376,7 @@ export async function POST(req: NextRequest) {
     updated,
     skipped,
     dnh_blocked: dnhBlocked,
+    hired_added: hiredCount,
     skip_reasons: skipReasons,
     detected_columns: detectedColumns,
   });

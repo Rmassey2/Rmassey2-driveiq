@@ -8,6 +8,7 @@ interface ImportResult {
   updated: number;
   skipped: number;
   dnh_blocked?: number;
+  hired_added?: number;
   skip_reasons?: Record<string, number>;
   detected_columns?: string[];
 }
@@ -105,10 +106,25 @@ export default function ImportPage() {
             <span className="text-gray-400">Date applied</span>
             <span className="font-mono text-gray-300">Last App Date</span>
           </div>
+          <div className="flex justify-between border-b border-gray-700/30 py-1">
+            <span className="text-gray-400">Hire date</span>
+            <span className="font-mono text-gray-300">Hire Date, Employment Date</span>
+          </div>
+          <div className="flex justify-between border-b border-gray-700/30 py-1">
+            <span className="text-gray-400">Truck</span>
+            <span className="font-mono text-gray-300">Truck Number, Unit, Truck #</span>
+          </div>
+          <div className="flex justify-between border-b border-gray-700/30 py-1">
+            <span className="text-gray-400">Driver type</span>
+            <span className="font-mono text-gray-300">Driver Type, Worklist</span>
+          </div>
         </div>
         <p className="mt-3 text-xs text-gray-500">
           &quot;Name&quot; column expects Last, First format. Status maps: Recruiting/Attempting to contact/Wants Local → active, No Response → cold flag.
           Worklist maps: Owner Operator/Contractor for Owner Operator → Owner-Op.
+        </p>
+        <p className="mt-1 text-xs text-[#c8a951]">
+          Active drivers with Hired/Active/Employed/Current/Driver status will be automatically added to the retention engine with check-ins scheduled.
         </p>
       </div>
 
@@ -156,6 +172,12 @@ export default function ImportPage() {
               <span className="text-gray-400">Skipped:</span>
               <span className="ml-2 font-bold text-gray-400">{result.skipped}</span>
             </div>
+            {(result.hired_added ?? 0) > 0 && (
+              <div>
+                <span className="text-gray-400">Hired &amp; Added to Retention:</span>
+                <span className="ml-2 font-bold text-[#c8a951]">{result.hired_added}</span>
+              </div>
+            )}
             {(result.dnh_blocked ?? 0) > 0 && (
               <div>
                 <span className="text-gray-400">DNH Blocked:</span>
