@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { calculateLeadScore } from "@/lib/scoring";
 import { sendSMS } from "@/lib/twilio";
+import { normalizePhone } from "@/lib/utils";
+import { findDuplicateLead, checkDNH } from "@/lib/dedup";
 
 function svc() {
   return createClient(
@@ -21,7 +23,9 @@ export async function POST(req: NextRequest) {
   }
 
   const fullName = (body.full_name as string) ?? "";
-  const phone = ((body.phone as string) ?? "").replace(/\D/g, "");
+  const phone = normalizePhone((body.phone as string) ?? "");
+  const email = ((body.email as string) ?? "").toLowerCase().trim();
+  const cdlNumber = (body.cdl_number as string) ?? "";
 
   if (!fullName || !phone) {
     return NextResponse.json({ error: "full_name and phone required" }, { status: 400 });
@@ -35,6 +39,47 @@ export async function POST(req: NextRequest) {
 
   if (!org) {
     return NextResponse.json({ error: "Org not found" }, { status: 500 });
+  }
+
+  // DNH check
+  const dnh = await checkDNH(supabase, { phone, email: email || null, cdl_number: cdlNumber || null });
+  if (dnh.blocked) {
+    await supabase.from("autonomous_actions").insert({
+      org_id: org.id,
+      action_type: "dnh_block",
+      description: `Blocked Quick Add lead "${fullName}" — matches DNH record on ${dnh.matchedOn}`,
+      reasoning: `DNH match on ${dnh.matchedOn}, existing lead ID: ${dnh.matchedId}`,
+      affected_record_id: dnh.matchedId,
+      affected_table: "driver_leads",
+    });
+    return NextResponse.json(
+      { error: "This driver is flagged Do Not Hire" },
+      { status: 403 }
+    );
+  }
+
+  // Dedup check
+  const dup = await findDuplicateLead(supabase, {
+    phone,
+    email: email || null,
+    cdl_number: cdlNumber || null,
+  });
+
+  if (dup.existingId) {
+    // Return existing lead with duplicate flag
+    const { data: existing } = await supabase
+      .from("driver_leads")
+      .select("*")
+      .eq("id", dup.existingId)
+      .single();
+
+    return NextResponse.json({
+      success: true,
+      lead_id: dup.existingId,
+      duplicate_detected: true,
+      matched_on: dup.matchedOn,
+      lead: existing,
+    });
   }
 
   const firstName = fullName.trim().split(/\s+/)[0];
@@ -53,9 +98,10 @@ export async function POST(req: NextRequest) {
       org_id: org.id,
       full_name: fullName.trim(),
       phone,
-      email: (body.email as string) || null,
+      email: email || null,
       zip_code: (body.zip_code as string) || null,
       cdl_class: (body.cdl_class as string) || null,
+      cdl_number: cdlNumber || null,
       years_experience: (body.years_experience as string) || null,
       segment_interest: segment,
       entry_point: source,
@@ -110,5 +156,5 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  return NextResponse.json({ success: true, lead_id: lead.id, score });
+  return NextResponse.json({ success: true, lead_id: lead.id, score, duplicate_detected: false });
 }

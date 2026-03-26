@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { normalizePhone } from "@/lib/utils";
+import { findDuplicateLead, checkDNH } from "@/lib/dedup";
 
 function svc() {
   return createClient(
@@ -59,51 +61,62 @@ export async function POST(req: NextRequest) {
   let created = 0;
   let updated = 0;
   let skipped = 0;
+  let dnhBlocked = 0;
 
   for (const row of rows) {
     const firstName = row["First Name"] ?? "";
     const lastName = row["Last Name"] ?? "";
-    const phone = (row["Phone"] ?? "").replace(/\D/g, "");
-    const email = row["Email"] ?? "";
+    const phone = normalizePhone(row["Phone"] ?? "");
+    const email = (row["Email"] ?? "").toLowerCase().trim();
     const applicantId = row["Applicant ID"] ?? "";
     const status = row["Status"] ?? "";
     const source = row["Source"] ?? "";
+    const cdlNumber = row["CDL Number"] ?? row["CDL"] ?? "";
 
     if (!phone && !email) {
       skipped++;
       continue;
     }
 
-    let existing: { id: string } | null = null;
-    if (phone) {
-      const { data } = await supabase
-        .from("driver_leads")
-        .select("id")
-        .eq("phone", phone)
-        .limit(1)
-        .maybeSingle();
-      existing = data;
-    }
-    if (!existing && email) {
-      const { data } = await supabase
-        .from("driver_leads")
-        .select("id")
-        .eq("email", email)
-        .limit(1)
-        .maybeSingle();
-      existing = data;
+    // DNH check
+    const dnh = await checkDNH(supabase, {
+      phone: phone || null,
+      email: email || null,
+      cdl_number: cdlNumber || null,
+    });
+    if (dnh.blocked) {
+      const fullName = `${firstName} ${lastName}`.trim();
+      await supabase.from("autonomous_actions").insert({
+        org_id: org.id,
+        action_type: "dnh_block",
+        description: `Blocked CSV import "${fullName}" — matches DNH record on ${dnh.matchedOn}`,
+        reasoning: `DNH match on ${dnh.matchedOn}, existing lead ID: ${dnh.matchedId}`,
+        affected_record_id: dnh.matchedId,
+        affected_table: "driver_leads",
+      });
+      dnhBlocked++;
+      continue;
     }
 
-    if (existing) {
+    // Dedup check
+    const dup = await findDuplicateLead(supabase, {
+      tenstreet_applicant_id: applicantId || null,
+      phone: phone || null,
+      email: email || null,
+      cdl_number: cdlNumber || null,
+    });
+
+    if (dup.existingId) {
       const updateFields: Record<string, string> = {};
       if (applicantId) updateFields.tenstreet_applicant_id = applicantId;
       if (status) updateFields.tenstreet_status = status;
+      if (cdlNumber) updateFields.cdl_number = cdlNumber;
       updateFields.updated_at = new Date().toISOString();
 
       await supabase
         .from("driver_leads")
         .update(updateFields)
-        .eq("id", existing.id);
+        .eq("id", dup.existingId);
       updated++;
     } else {
       const fullName = `${firstName} ${lastName}`.trim();
@@ -112,6 +125,7 @@ export async function POST(req: NextRequest) {
         full_name: fullName || "Unknown",
         phone: phone || null,
         email: email || null,
+        cdl_number: cdlNumber || null,
         tenstreet_applicant_id: applicantId || null,
         tenstreet_status: status || null,
         entry_point: "tenstreet_direct",
@@ -135,5 +149,5 @@ export async function POST(req: NextRequest) {
     records_skipped: skipped,
   });
 
-  return NextResponse.json({ processed: rows.length, created, updated, skipped });
+  return NextResponse.json({ processed: rows.length, created, updated, skipped, dnh_blocked: dnhBlocked });
 }

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { calculateLeadScore } from "@/lib/scoring";
 import { sendSMS } from "@/lib/twilio";
+import { normalizePhone } from "@/lib/utils";
+import { findDuplicateLead, checkDNH } from "@/lib/dedup";
 
 function svc() {
   return createClient(
@@ -25,8 +27,9 @@ export async function POST(req: NextRequest) {
 
   const data = (body.data ?? body) as Record<string, string>;
   const name = data.name ?? data.Name ?? "";
-  const phone = (data.phone ?? data.Phone ?? "").replace(/\D/g, "");
-  const email = data.email ?? data.Email ?? "";
+  const phone = normalizePhone(data.phone ?? data.Phone ?? "");
+  const email = (data.email ?? data.Email ?? "").toLowerCase().trim();
+  const cdlNumber = data.cdl_number ?? data["cdl-number"] ?? "";
 
   if (!name || !phone) {
     return NextResponse.json({ error: "name and phone are required" }, { status: 400 });
@@ -54,6 +57,7 @@ export async function POST(req: NextRequest) {
   const utmCampaign = data.utm_campaign ?? null;
   const utmMedium = data.utm_medium ?? null;
   const utmContent = data.utm_content ?? null;
+  const tenstreetId = data.tenstreet_applicant_id ?? null;
 
   const entryPoint = utmSource ?? "webflow_direct";
   const sourceChannel = utmSource ?? "webflow";
@@ -70,29 +74,33 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Organization not found" }, { status: 500 });
   }
 
+  // DNH check before anything else
+  const dnh = await checkDNH(supabase, { phone, email: email || null, cdl_number: cdlNumber || null });
+  if (dnh.blocked) {
+    await supabase.from("autonomous_actions").insert({
+      org_id: org.id,
+      action_type: "dnh_block",
+      description: `Blocked webflow lead "${name}" — matches DNH record on ${dnh.matchedOn}`,
+      reasoning: `DNH match on ${dnh.matchedOn}, existing lead ID: ${dnh.matchedId}`,
+      affected_record_id: dnh.matchedId,
+      affected_table: "driver_leads",
+    });
+    return NextResponse.json(
+      { error: "This driver is flagged Do Not Hire" },
+      { status: 403 }
+    );
+  }
+
   const firstName = name.trim().split(/\s+/)[0];
   const score = calculateLeadScore({ cdlClass, yearsExperience, source: utmSource });
 
-  // Check existing by phone or email
-  let existingId: string | null = null;
-  const { data: byPhone } = await supabase
-    .from("driver_leads")
-    .select("id")
-    .eq("phone", phone)
-    .limit(1)
-    .maybeSingle();
-
-  if (byPhone) {
-    existingId = byPhone.id;
-  } else if (email) {
-    const { data: byEmail } = await supabase
-      .from("driver_leads")
-      .select("id")
-      .eq("email", email)
-      .limit(1)
-      .maybeSingle();
-    if (byEmail) existingId = byEmail.id;
-  }
+  // Dedup check
+  const dup = await findDuplicateLead(supabase, {
+    tenstreet_applicant_id: tenstreetId,
+    phone,
+    email: email || null,
+    cdl_number: cdlNumber || null,
+  });
 
   const leadData = {
     org_id: org.id,
@@ -101,6 +109,7 @@ export async function POST(req: NextRequest) {
     email: email || null,
     zip_code: zipCode,
     cdl_class: cdlClass,
+    cdl_number: cdlNumber || null,
     years_experience: yearsExperience,
     segment_interest: segment,
     entry_point: entryPoint,
@@ -108,9 +117,10 @@ export async function POST(req: NextRequest) {
     source_campaign: utmCampaign,
     utm_medium: utmMedium,
     utm_content: utmContent,
+    tenstreet_applicant_id: tenstreetId,
     lead_score: score,
     pipeline_stage: 1,
-    disposition: "active",
+    disposition: "active" as const,
     cold_flag: false,
     do_not_hire: false,
     updated_at: new Date().toISOString(),
@@ -118,16 +128,20 @@ export async function POST(req: NextRequest) {
 
   let leadId: string;
 
-  if (existingId) {
+  if (dup.existingId) {
+    // Update existing — don't overwrite disposition or do_not_hire
+    const { disposition: _d, do_not_hire: _dnh, pipeline_stage: _ps, ...updateData } = leadData;
+    void _d; void _dnh; void _ps;
     const { error } = await supabase
       .from("driver_leads")
-      .update(leadData)
-      .eq("id", existingId);
+      .update(updateData)
+      .eq("id", dup.existingId);
     if (error) {
       console.error("Update lead error:", error);
       return NextResponse.json({ error: "Failed to update lead" }, { status: 500 });
     }
-    leadId = existingId;
+    leadId = dup.existingId;
+    console.log(`Webflow dedup: updated existing lead ${leadId}, matched on ${dup.matchedOn}`);
   } else {
     const { data: newLead, error } = await supabase
       .from("driver_leads")
@@ -145,39 +159,42 @@ export async function POST(req: NextRequest) {
   const smsBody = `Hey ${firstName}, this is your Maco Transport recruiter — got your info and will be in touch shortly. Questions? Reply to this text. Reply STOP to opt out.`;
   await sendSMS(phone, smsBody);
 
-  // Enroll in drip campaign
-  const { data: campaign } = await supabase
-    .from("drip_campaigns")
-    .select("id")
-    .eq("org_id", org.id)
-    .ilike("name", `%${segment}%`)
-    .limit(1)
-    .maybeSingle();
-
-  if (campaign) {
-    const { data: firstMsg } = await supabase
-      .from("drip_messages")
+  // Enroll in drip campaign (only for new leads)
+  if (!dup.existingId) {
+    const { data: campaign } = await supabase
+      .from("drip_campaigns")
       .select("id")
-      .eq("campaign_id", campaign.id)
-      .order("sequence_order", { ascending: true })
+      .eq("org_id", org.id)
+      .ilike("name", `%${segment}%`)
       .limit(1)
       .maybeSingle();
 
-    await supabase.from("drip_enrollments").insert({
-      org_id: org.id,
-      driver_id: leadId,
-      campaign_id: campaign.id,
-      status: "active",
-      messages_sent: 0,
-      next_message_id: firstMsg?.id ?? null,
-      next_send_at: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString(),
-    });
+    if (campaign) {
+      const { data: firstMsg } = await supabase
+        .from("drip_messages")
+        .select("id")
+        .eq("campaign_id", campaign.id)
+        .order("sequence_order", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+
+      await supabase.from("drip_enrollments").insert({
+        org_id: org.id,
+        driver_id: leadId,
+        campaign_id: campaign.id,
+        status: "active",
+        messages_sent: 0,
+        next_message_id: firstMsg?.id ?? null,
+        next_send_at: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString(),
+      });
+    }
   }
 
   return NextResponse.json({
     success: true,
     lead_id: leadId,
     score,
-    campaign: campaign ? `${segment} Active Recruiting` : "no matching campaign",
+    duplicate_detected: !!dup.existingId,
+    matched_on: dup.matchedOn,
   });
 }
