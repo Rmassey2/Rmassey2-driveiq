@@ -15,7 +15,22 @@ function parseCSV(text: string): Record<string, string>[] {
   if (lines.length < 2) return [];
   const headers = lines[0].split(",").map((h) => h.trim().replace(/^"|"$/g, ""));
   return lines.slice(1).map((line) => {
-    const values = line.split(",").map((v) => v.trim().replace(/^"|"$/g, ""));
+    // Handle quoted fields with commas inside them
+    const values: string[] = [];
+    let current = "";
+    let inQuotes = false;
+    for (const char of line) {
+      if (char === '"') {
+        inQuotes = !inQuotes;
+      } else if (char === "," && !inQuotes) {
+        values.push(current.trim());
+        current = "";
+      } else {
+        current += char;
+      }
+    }
+    values.push(current.trim());
+
     const row: Record<string, string> = {};
     headers.forEach((h, i) => {
       row[h] = values[i] ?? "";
@@ -33,6 +48,52 @@ function mapSource(source: string): string {
   if (s.includes("referral")) return "referral";
   if (s.includes("company") || s.includes("website")) return "website";
   return "job_board";
+}
+
+/** Parse "Last, First" format into { first, last } */
+function parseLastCommaFirst(name: string): { first: string; last: string } {
+  const parts = name.split(",").map((s) => s.trim());
+  if (parts.length >= 2) {
+    return { first: parts[1], last: parts[0] };
+  }
+  // Fallback: treat as "First Last"
+  const spaceParts = name.trim().split(/\s+/);
+  return { first: spaceParts[0] ?? "", last: spaceParts.slice(1).join(" ") };
+}
+
+/** Map Tenstreet Worklist to segment_interest */
+function mapWorklist(worklist: string): string | null {
+  const w = worklist.toLowerCase().trim();
+  if (w.includes("contractor for owner") || w.includes("owner operator") || w.includes("owner-op")) {
+    return "Owner-Op";
+  }
+  if (w.includes("company driver")) return null; // unassigned
+  if (w.includes("regional")) return "Regional";
+  if (w.includes("local")) return "Local";
+  if (w.includes("dedicated")) return "Dedicated";
+  if (w.includes("otr")) return "OTR";
+  return null;
+}
+
+/** Map Tenstreet Status to DriveIQ disposition + cold_flag */
+function mapStatus(status: string): { disposition: string; coldFlag: boolean } {
+  const s = status.toLowerCase().trim();
+  if (s.includes("no response") || s.includes("no answer") || s.includes("unreachable")) {
+    return { disposition: "active", coldFlag: true };
+  }
+  if (s.includes("recruiting") || s.includes("attempting") || s.includes("wants local") || s.includes("new lead") || s.includes("pending")) {
+    return { disposition: "active", coldFlag: false };
+  }
+  if (s.includes("hired") || s.includes("orientation")) {
+    return { disposition: "hired", coldFlag: false };
+  }
+  if (s.includes("not qualified") || s.includes("dq") || s.includes("disqualif")) {
+    return { disposition: "archived", coldFlag: false };
+  }
+  if (s.includes("withdrew") || s.includes("declined") || s.includes("not interested")) {
+    return { disposition: "withdrew", coldFlag: false };
+  }
+  return { disposition: "active", coldFlag: false };
 }
 
 export async function POST(req: NextRequest) {
@@ -58,20 +119,55 @@ export async function POST(req: NextRequest) {
 
   if (!org) return NextResponse.json({ error: "Org not found" }, { status: 500 });
 
+  // Pre-fetch org members for recruiter matching
+  const { data: orgMembers } = await supabase
+    .from("org_members")
+    .select("id, full_name, role")
+    .eq("org_id", org.id)
+    .eq("is_active", true);
+
+  const defaultRecruiter = (orgMembers ?? []).find((m) => m.role === "recruiter");
+
+  function matchRecruiter(recruiterName: string): string | null {
+    if (!recruiterName) return defaultRecruiter?.id ?? null;
+    // Tenstreet format: "Last, First"
+    const parsed = parseLastCommaFirst(recruiterName);
+    const searchName = `${parsed.first} ${parsed.last}`.toLowerCase().trim();
+    const match = (orgMembers ?? []).find((m) =>
+      m.full_name.toLowerCase().trim() === searchName
+    );
+    return match?.id ?? defaultRecruiter?.id ?? null;
+  }
+
   let created = 0;
   let updated = 0;
   let skipped = 0;
   let dnhBlocked = 0;
 
   for (const row of rows) {
-    const firstName = row["First Name"] ?? "";
-    const lastName = row["Last Name"] ?? "";
-    const phone = normalizePhone(row["Phone"] ?? "");
+    // --- Extract fields with column name variations ---
+
+    // Name: try "First Name"/"Last Name" first, then "Name" (Last, First)
+    let firstName = row["First Name"] ?? "";
+    let lastName = row["Last Name"] ?? "";
+    if (!firstName && !lastName && row["Name"]) {
+      const parsed = parseLastCommaFirst(row["Name"]);
+      firstName = parsed.first;
+      lastName = parsed.last;
+    }
+
+    // Phone: "Phone" or "Pri Phone"
+    const phoneRaw = row["Phone"] ?? row["Pri Phone"] ?? "";
+    const phone = normalizePhone(phoneRaw);
+
     const email = (row["Email"] ?? "").toLowerCase().trim();
     const applicantId = row["Applicant ID"] ?? "";
-    const status = row["Status"] ?? "";
+    const statusRaw = row["Status"] ?? "";
     const source = row["Source"] ?? "";
     const cdlNumber = row["CDL Number"] ?? row["CDL"] ?? "";
+    const worklist = row["Worklist"] ?? "";
+    const recruiterName = row["Recruiter"] ?? "";
+    const dob = row["DOB"] ?? "";
 
     if (!phone && !email) {
       skipped++;
@@ -106,11 +202,24 @@ export async function POST(req: NextRequest) {
       cdl_number: cdlNumber || null,
     });
 
+    // Map status and segment
+    const { disposition, coldFlag } = statusRaw ? mapStatus(statusRaw) : { disposition: "active", coldFlag: false };
+    const segment = worklist ? mapWorklist(worklist) : null;
+    const recruiterId = matchRecruiter(recruiterName);
+
+    // Build notes with DOB if provided
+    const noteParts: string[] = [];
+    if (dob) noteParts.push(`DOB: ${dob}`);
+    const notes = noteParts.length > 0 ? noteParts.join("; ") : null;
+
     if (dup.existingId) {
-      const updateFields: Record<string, string> = {};
+      const updateFields: Record<string, unknown> = {};
       if (applicantId) updateFields.tenstreet_applicant_id = applicantId;
-      if (status) updateFields.tenstreet_status = status;
+      if (statusRaw) updateFields.tenstreet_status = statusRaw;
       if (cdlNumber) updateFields.cdl_number = cdlNumber;
+      if (segment) updateFields.segment_interest = segment;
+      if (recruiterId) updateFields.recruiter_id = recruiterId;
+      if (notes) updateFields.notes = notes;
       updateFields.updated_at = new Date().toISOString();
 
       await supabase
@@ -127,14 +236,17 @@ export async function POST(req: NextRequest) {
         email: email || null,
         cdl_number: cdlNumber || null,
         tenstreet_applicant_id: applicantId || null,
-        tenstreet_status: status || null,
+        tenstreet_status: statusRaw || null,
+        segment_interest: segment,
+        recruiter_id: recruiterId,
         entry_point: "tenstreet_direct",
         source_channel: source ? mapSource(source) : "job_board",
         lead_score: 0,
         pipeline_stage: 1,
-        disposition: "active",
-        cold_flag: false,
+        disposition,
+        cold_flag: coldFlag,
         do_not_hire: false,
+        notes,
       });
       created++;
     }
