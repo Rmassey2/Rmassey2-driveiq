@@ -19,8 +19,7 @@ export default function ImportPage() {
   const [result, setResult] = useState<ImportResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  async function handleUpload(e: React.FormEvent) {
-    e.preventDefault();
+  async function handleUpload() {
     if (!file) return;
 
     setLoading(true);
@@ -128,7 +127,7 @@ export default function ImportPage() {
         </p>
       </div>
 
-      <form onSubmit={handleUpload} className="space-y-4">
+      <div className="space-y-4">
         <div className="rounded-lg border-2 border-dashed border-gray-600 p-8 text-center">
           <input
             type="file"
@@ -140,13 +139,14 @@ export default function ImportPage() {
         </div>
 
         <button
-          type="submit"
+          type="button"
+          onClick={handleUpload}
           disabled={!file || loading}
           className="rounded-lg bg-[#c8a951] px-6 py-2 text-sm font-semibold text-[#0a1628] disabled:opacity-50"
         >
           {loading ? "Importing..." : "Upload & Import"}
         </button>
-      </form>
+      </div>
 
       {error && (
         <div className="rounded-lg bg-red-900/40 px-4 py-3 text-sm text-red-300">{error}</div>
