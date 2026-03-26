@@ -12,9 +12,24 @@ function svc() {
   );
 }
 
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type",
+};
+
+function cors(data: unknown, status = 200) {
+  return NextResponse.json(data, { status, headers: corsHeaders });
+}
+
+// CORS preflight
+export async function OPTIONS() {
+  return new NextResponse(null, { status: 204, headers: corsHeaders });
+}
+
 // Webflow may send a GET to verify the endpoint exists
 export async function GET() {
-  return NextResponse.json({ status: "ok", endpoint: "webflow-lead" });
+  return cors({ status: "ok", endpoint: "webflow-lead" });
 }
 
 export async function POST(req: NextRequest) {
@@ -26,7 +41,7 @@ export async function POST(req: NextRequest) {
     body = JSON.parse(rawBody);
   } catch {
     console.error("[Webflow Webhook] Failed to parse JSON body");
-    return NextResponse.json({ received: true, error: "Invalid JSON" });
+    return cors({ received: true, error: "Invalid JSON" });
   }
 
   // Log raw payload for debugging
@@ -38,7 +53,7 @@ export async function POST(req: NextRequest) {
   const expectedSecret = process.env.WEBFLOW_WEBHOOK_SECRET;
   if (expectedSecret && secret && secret !== expectedSecret) {
     console.warn("[Webflow Webhook] Secret mismatch — rejecting");
-    return NextResponse.json({ received: true, error: "Unauthorized" });
+    return cors({ received: true, error: "Unauthorized" });
   }
 
   // Extract form data — handle BOTH V1 and V2 formats
@@ -68,7 +83,7 @@ export async function POST(req: NextRequest) {
 
   if (!name || !phone) {
     console.warn("[Webflow Webhook] Missing name or phone — name:", name, "phone:", phone);
-    return NextResponse.json({ received: true, error: "name and phone are required", fields_found: Object.keys(data) });
+    return cors({ received: true, error: "name and phone are required", fields_found: Object.keys(data) });
   }
 
   const zipCode = data["zip-code"] ?? data.zip_code ?? data["Zip Code"] ?? null;
@@ -117,7 +132,7 @@ export async function POST(req: NextRequest) {
 
   if (!org) {
     console.error("[Webflow Webhook] Organization not found");
-    return NextResponse.json({ received: true, error: "Organization not found" });
+    return cors({ received: true, error: "Organization not found" });
   }
 
   // DNH check before anything else
@@ -131,7 +146,7 @@ export async function POST(req: NextRequest) {
       affected_record_id: dnh.matchedId,
       affected_table: "driver_leads",
     });
-    return NextResponse.json({ received: true, blocked: true, reason: "Do Not Hire" });
+    return cors({ received: true, blocked: true, reason: "Do Not Hire" });
   }
 
   const firstName = name.trim().split(/\s+/)[0];
@@ -180,7 +195,7 @@ export async function POST(req: NextRequest) {
       .eq("id", dup.existingId);
     if (error) {
       console.error("[Webflow Webhook] Update lead error:", error);
-      return NextResponse.json({ received: true, error: "Failed to update lead" });
+      return cors({ received: true, error: "Failed to update lead" });
     }
     leadId = dup.existingId;
     console.log(`[Webflow Webhook] Dedup: updated existing lead ${leadId}, matched on ${dup.matchedOn}`);
@@ -192,7 +207,7 @@ export async function POST(req: NextRequest) {
       .single();
     if (error || !newLead) {
       console.error("[Webflow Webhook] Insert lead error:", error);
-      return NextResponse.json({ received: true, error: "Failed to create lead" });
+      return cors({ received: true, error: "Failed to create lead" });
     }
     leadId = newLead.id;
     console.log(`[Webflow Webhook] Created new lead ${leadId}, score: ${score}`);
@@ -254,7 +269,7 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  return NextResponse.json({
+  return cors({
     received: true,
     success: true,
     lead_id: leadId,
