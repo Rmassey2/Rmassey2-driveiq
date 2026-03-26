@@ -47,8 +47,8 @@ export default function ImportPage() {
     <div className="mx-auto max-w-2xl space-y-6">
       <h1 className="text-2xl font-bold text-white">Import from Tenstreet</h1>
       <p className="text-sm text-gray-400">
-        Upload a CSV export from Tenstreet. Duplicates are detected by Applicant ID, phone, email, or CDL number.
-        DNH-flagged drivers are automatically blocked.
+        Upload a CSV or Excel (.xlsx/.xls) export from Tenstreet. Duplicates are detected by Applicant ID,
+        phone, email, or CDL number. DNH-flagged drivers are automatically blocked.
       </p>
 
       {/* Accepted columns */}
@@ -114,7 +114,7 @@ export default function ImportPage() {
         <div className="rounded-lg border-2 border-dashed border-gray-600 p-8 text-center">
           <input
             type="file"
-            accept=".csv"
+            accept=".csv,.xlsx,.xls"
             onChange={(e) => setFile(e.target.files?.[0] ?? null)}
             className="text-sm text-gray-400"
           />

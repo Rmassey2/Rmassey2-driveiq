@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import * as XLSX from "xlsx";
 import { normalizePhone } from "@/lib/utils";
 import { findDuplicateLead, checkDNH } from "@/lib/dedup";
 
@@ -104,11 +105,34 @@ export async function POST(req: NextRequest) {
 
   if (!file) return NextResponse.json({ error: "No file uploaded" }, { status: 400 });
 
-  const text = await file.text();
-  const rows = parseCSV(text);
+  const fileName = file.name.toLowerCase();
+  const isExcel = fileName.endsWith(".xlsx") || fileName.endsWith(".xls") ||
+    file.type === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
+    file.type === "application/vnd.ms-excel";
+
+  let rows: Record<string, string>[];
+
+  if (isExcel) {
+    const buffer = await file.arrayBuffer();
+    const workbook = XLSX.read(buffer, { type: "array" });
+    const sheetName = workbook.SheetNames[0];
+    if (!sheetName) return NextResponse.json({ error: "Empty spreadsheet" }, { status: 400 });
+    const rawRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets[sheetName]);
+    // Convert all values to strings
+    rows = rawRows.map((row) => {
+      const stringRow: Record<string, string> = {};
+      for (const [key, val] of Object.entries(row)) {
+        stringRow[key] = val != null ? String(val) : "";
+      }
+      return stringRow;
+    });
+  } else {
+    const text = await file.text();
+    rows = parseCSV(text);
+  }
 
   if (rows.length === 0) {
-    return NextResponse.json({ error: "Empty or invalid CSV" }, { status: 400 });
+    return NextResponse.json({ error: "Empty or invalid file" }, { status: 400 });
   }
 
   const { data: org } = await supabase
