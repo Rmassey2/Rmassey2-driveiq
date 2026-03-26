@@ -11,6 +11,18 @@
     {
       "path": "/api/cron/retention-check",
       "schedule": "0 8 * * *"
+    },
+    {
+      "path": "/api/cron/review-requests",
+      "schedule": "0 9 * * *"
+    },
+    {
+      "path": "/api/cron/cmo-report",
+      "schedule": "0 6 1 * *"
+    },
+    {
+      "path": "/api/cron/competitive-intel",
+      "schedule": "0 10 */2 * *"
     }
   ]
 }

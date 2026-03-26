@@ -189,3 +189,40 @@ export interface ContentPost {
   created_at: string;
   updated_at: string;
 }
+
+export interface ReviewRequest {
+  id: string;
+  org_id: string;
+  driver_id: string;
+  platform: string;
+  sent_via: string;
+  sent_at: string;
+  opened: boolean;
+  clicked: boolean;
+  submitted: boolean;
+  rating: number | null;
+  meta: Record<string, unknown> | null;
+  created_at: string;
+}
+
+export interface CmoReport {
+  id: string;
+  org_id: string;
+  report_month: string;
+  summary: string | null;
+  recommendations: { priority: string; recommendation: string; urgency: string }[] | null;
+  metrics: Record<string, unknown> | null;
+  created_at: string;
+}
+
+export interface CompetitiveIntel {
+  id: string;
+  org_id: string;
+  competitor: string;
+  intel_type: string;
+  description: string;
+  source: string | null;
+  significance: string;
+  meta: Record<string, unknown> | null;
+  created_at: string;
+}

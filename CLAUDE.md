@@ -95,10 +95,17 @@ active | considering | contact_later | do_not_hire | hired | withdrew | archived
 - **Session 1** — scaffold, auth, role-based dashboard shell, Randall and Jacob user accounts
 - **Session 2** — Webflow webhook intake, lead scoring, Twilio SMS confirmation, drip enrollment, Jacob pipeline dashboard, Quick Add, slide-over detail panel, DNH flag, Contact Later, call log, drip engine cron, contact-later cron, Tenstreet CSV import, source attribution API
 - **Session 3** — Retention dashboard, hired_drivers management, auto-hire flow (disposition→hired creates record + schedules check-ins), check-in scheduler (day 1/7/30/60/90/180/annual), 5-dimension satisfaction scoring, retention risk engine cron, Yellow/Red alert routing (SMS + email to DM and admin), flag management, exit interview form, separation flow with rehire eligibility
+- **Session 4A** — AI CMO dashboard, CMO approval inbox with Approve/Edit/Dismiss, AI Ad Studio (Claude API ad generation, Facebook preview, campaign table), Content Calendar (weekly view, Generate Week, post management)
+- **Session 4B** — Review request system (Day 30 Google, Day 45 Facebook, Claude-personalized SMS, autonomous action logging), source attribution dashboard (recharts bar chart, channel table, Facebook quality callout), monthly CMO report generator (Claude AI executive summary + 3 recommendations, HTML email to admin), competitive intel scanner (Claude AI every 48h, auto-creates inbox items), shared components (skeleton, empty-state, toast, error-boundary), dashboard home polish (priority leads, overdue check-ins, open flags, pending approvals, activity feed), sign out button, mobile responsive tables
 
-### Sessions Remaining
-- **Session 4** — AI CMO: Claude API ad copy generator, Facebook content calendar, review request SMS at Day 30 post-hire, CMO approval inbox, autonomous action log, cost-per-hire analytics dashboard
-- **Session 5** — Monthly CMO report generator, competitive intel scanner, source attribution dashboard UI, full app polish, mobile responsiveness, error states, loading states
+### App Is Complete — All Sessions Done
+
+### Known Limitations / Future Work
+- **Tenstreet API** — CSV import only currently; direct API integration planned for Phase 2
+- **Facebook auto-publish** — manual copy-paste from Content Calendar currently; Meta API auto-publish planned
+- **Google review tracking** — review requests sent via SMS but open/click/submit tracking is manual
+- **Meta Ads API** — live campaign management (budget, targeting, start/stop) not yet connected
+- **A2P SMS upgrade** — Twilio A2P 10DLC registration needed before going live with real driver SMS volume
 
 ### Environment Variables Required
 NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM_NUMBER, RESEND_API_KEY, RESEND_FROM_RECRUITING, RESEND_FROM_NEWSLETTER, RESEND_FROM_NAME, META_APP_ID, META_APP_SECRET, META_PAGE_ACCESS_TOKEN, META_PAGE_ID, META_AD_ACCOUNT_ID, ANTHROPIC_API_KEY, GOOGLE_REVIEW_LINK, NEXT_PUBLIC_APP_URL, NEXT_PUBLIC_ORG_SLUG, WEBFLOW_WEBHOOK_SECRET, CRON_SECRET, ADMIN_PHONE
