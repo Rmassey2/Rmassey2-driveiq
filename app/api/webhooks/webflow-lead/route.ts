@@ -12,40 +12,76 @@ function svc() {
   );
 }
 
-export async function POST(req: NextRequest) {
-  const secret = req.headers.get("x-webflow-secret");
-  if (secret !== process.env.WEBFLOW_WEBHOOK_SECRET) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+// Webflow may send a GET to verify the endpoint exists
+export async function GET() {
+  return NextResponse.json({ status: "ok", endpoint: "webflow-lead" });
+}
 
+export async function POST(req: NextRequest) {
+  // Parse body — always return 200 to prevent Webflow from disabling the webhook
+  let rawBody: string;
   let body: Record<string, unknown>;
   try {
-    body = await req.json();
+    rawBody = await req.text();
+    body = JSON.parse(rawBody);
   } catch {
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    console.error("[Webflow Webhook] Failed to parse JSON body");
+    return NextResponse.json({ received: true, error: "Invalid JSON" });
   }
 
-  const data = (body.data ?? body) as Record<string, string>;
-  const name = data.name ?? data.Name ?? "";
-  const phone = normalizePhone(data.phone ?? data.Phone ?? "");
-  const email = (data.email ?? data.Email ?? "").toLowerCase().trim();
-  const cdlNumber = data.cdl_number ?? data["cdl-number"] ?? "";
+  // Log raw payload for debugging
+  console.log("[Webflow Webhook] Raw payload:", rawBody.slice(0, 2000));
+  console.log("[Webflow Webhook] Top-level keys:", Object.keys(body).join(", "));
+
+  // Optional auth check — skip if header not present (Webflow V2 doesn't send custom headers)
+  const secret = req.headers.get("x-webflow-secret");
+  const expectedSecret = process.env.WEBFLOW_WEBHOOK_SECRET;
+  if (expectedSecret && secret && secret !== expectedSecret) {
+    console.warn("[Webflow Webhook] Secret mismatch — rejecting");
+    return NextResponse.json({ received: true, error: "Unauthorized" });
+  }
+
+  // Extract form data — handle BOTH V1 and V2 formats
+  // V2: { formData: { name, phone, ... }, site: {...}, submissionId, ... }
+  // V1: { data: { name, phone, ... } } or flat { name, phone, ... }
+  let data: Record<string, string>;
+  if (body.formData && typeof body.formData === "object") {
+    // Webflow API V2 format
+    data = body.formData as Record<string, string>;
+    console.log("[Webflow Webhook] Using V2 formData format");
+  } else if (body.data && typeof body.data === "object") {
+    // Webflow V1 / legacy format
+    data = body.data as Record<string, string>;
+    console.log("[Webflow Webhook] Using V1 data format");
+  } else {
+    // Flat format — fields directly on body
+    data = body as unknown as Record<string, string>;
+    console.log("[Webflow Webhook] Using flat body format");
+  }
+
+  console.log("[Webflow Webhook] Form fields:", JSON.stringify(data).slice(0, 1000));
+
+  const name = data.name ?? data.Name ?? data["full-name"] ?? data["Full Name"] ?? "";
+  const phone = normalizePhone(data.phone ?? data.Phone ?? data["pri-phone"] ?? data["phone-number"] ?? "");
+  const email = (data.email ?? data.Email ?? data["email-address"] ?? "").toLowerCase().trim();
+  const cdlNumber = data.cdl_number ?? data["cdl-number"] ?? data["CDL Number"] ?? "";
 
   if (!name || !phone) {
-    return NextResponse.json({ error: "name and phone are required" }, { status: 400 });
+    console.warn("[Webflow Webhook] Missing name or phone — name:", name, "phone:", phone);
+    return NextResponse.json({ received: true, error: "name and phone are required", fields_found: Object.keys(data) });
   }
 
-  const zipCode = data["zip-code"] ?? data.zip_code ?? null;
-  const cdlRaw = data["do-you-have-a-valid-cdl"] ?? data.cdl_class ?? "";
+  const zipCode = data["zip-code"] ?? data.zip_code ?? data["Zip Code"] ?? null;
+  const cdlRaw = data["do-you-have-a-valid-cdl"] ?? data.cdl_class ?? data["cdl"] ?? "";
   const cdlClass = cdlRaw.toLowerCase().includes("yes") ? "A" : cdlRaw.length <= 2 ? cdlRaw.toUpperCase() : null;
-  const yearsRaw = data["years-of-experience"] ?? data.years_experience ?? "";
+  const yearsRaw = data["years-of-experience"] ?? data.years_experience ?? data["experience"] ?? "";
 
   let yearsExperience = "less_than_2";
   if (yearsRaw.includes("5+") || yearsRaw.toLowerCase().includes("5 plus")) yearsExperience = "5_plus";
   else if (yearsRaw.includes("4-5") || yearsRaw.includes("4_5")) yearsExperience = "4_5";
   else if (yearsRaw.includes("2-3") || yearsRaw.includes("2_3")) yearsExperience = "2_3";
 
-  const segmentRaw = data["what-type-of-driver-are-you-interested-in-being"] ?? data.segment_interest ?? "";
+  const segmentRaw = data["what-type-of-driver-are-you-interested-in-being"] ?? data.segment_interest ?? data["driver-type"] ?? "";
   const segLower = segmentRaw.toLowerCase();
   let segment = "OTR";
   if (segLower.includes("regional")) segment = "Regional";
@@ -59,8 +95,17 @@ export async function POST(req: NextRequest) {
   const utmContent = data.utm_content ?? null;
   const tenstreetId = data.tenstreet_applicant_id ?? null;
 
-  const entryPoint = utmSource ?? "webflow_direct";
-  const sourceChannel = utmSource ?? "webflow";
+  // Determine entry point from site info if available
+  const siteName = (body.site as Record<string, string> | undefined)?.displayName ?? "";
+  let entryPoint = utmSource ?? "webflow_direct";
+  let sourceChannel = utmSource ?? "webflow";
+  if (siteName.toLowerCase().includes("getloaded")) {
+    entryPoint = "getloaded";
+    sourceChannel = "getloaded";
+  } else if (siteName.toLowerCase().includes("driveformaco")) {
+    entryPoint = "driveformaco";
+    sourceChannel = "driveformaco";
+  }
 
   const supabase = svc();
 
@@ -71,7 +116,8 @@ export async function POST(req: NextRequest) {
     .single();
 
   if (!org) {
-    return NextResponse.json({ error: "Organization not found" }, { status: 500 });
+    console.error("[Webflow Webhook] Organization not found");
+    return NextResponse.json({ received: true, error: "Organization not found" });
   }
 
   // DNH check before anything else
@@ -85,10 +131,7 @@ export async function POST(req: NextRequest) {
       affected_record_id: dnh.matchedId,
       affected_table: "driver_leads",
     });
-    return NextResponse.json(
-      { error: "This driver is flagged Do Not Hire" },
-      { status: 403 }
-    );
+    return NextResponse.json({ received: true, blocked: true, reason: "Do Not Hire" });
   }
 
   const firstName = name.trim().split(/\s+/)[0];
@@ -129,7 +172,6 @@ export async function POST(req: NextRequest) {
   let leadId: string;
 
   if (dup.existingId) {
-    // Update existing — don't overwrite disposition or do_not_hire
     const { disposition: _d, do_not_hire: _dnh, pipeline_stage: _ps, ...updateData } = leadData;
     void _d; void _dnh; void _ps;
     const { error } = await supabase
@@ -137,11 +179,11 @@ export async function POST(req: NextRequest) {
       .update(updateData)
       .eq("id", dup.existingId);
     if (error) {
-      console.error("Update lead error:", error);
-      return NextResponse.json({ error: "Failed to update lead" }, { status: 500 });
+      console.error("[Webflow Webhook] Update lead error:", error);
+      return NextResponse.json({ received: true, error: "Failed to update lead" });
     }
     leadId = dup.existingId;
-    console.log(`Webflow dedup: updated existing lead ${leadId}, matched on ${dup.matchedOn}`);
+    console.log(`[Webflow Webhook] Dedup: updated existing lead ${leadId}, matched on ${dup.matchedOn}`);
   } else {
     const { data: newLead, error } = await supabase
       .from("driver_leads")
@@ -149,15 +191,18 @@ export async function POST(req: NextRequest) {
       .select("id")
       .single();
     if (error || !newLead) {
-      console.error("Insert lead error:", error);
-      return NextResponse.json({ error: "Failed to create lead" }, { status: 500 });
+      console.error("[Webflow Webhook] Insert lead error:", error);
+      return NextResponse.json({ received: true, error: "Failed to create lead" });
     }
     leadId = newLead.id;
+    console.log(`[Webflow Webhook] Created new lead ${leadId}, score: ${score}`);
   }
 
   // Send welcome SMS
-  const smsBody = `Hey ${firstName}, this is your Maco Transport recruiter — got your info and will be in touch shortly. Questions? Reply to this text. Reply STOP to opt out.`;
-  await sendSMS(phone, smsBody);
+  await sendSMS(
+    phone,
+    `Hey ${firstName}, this is your Maco Transport recruiter — got your info and will be in touch shortly. Questions? Reply to this text. Reply STOP to opt out.`
+  );
 
   // Alert recruiter on priority leads (score 70+)
   if (score >= 70) {
@@ -210,6 +255,7 @@ export async function POST(req: NextRequest) {
   }
 
   return NextResponse.json({
+    received: true,
     success: true,
     lead_id: leadId,
     score,
