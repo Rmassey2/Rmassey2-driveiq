@@ -82,12 +82,15 @@ export default function ApplyPage() {
           {/* Left — copy */}
           <div>
             <h1 className="text-3xl md:text-4xl lg:text-5xl font-extrabold leading-tight">
-              Become a CDL Driver in Memphis with{" "}
-              <span className="text-[#d4a843]">weekends at home</span>
+              <span className="text-[#d4a843]">61&#162; Per Mile.</span>
+              <br />
+              Home Every Weekend.
+              <br />
+              <span className="text-[#d4a843]">Memphis Based.</span>
             </h1>
             <p className="mt-6 text-lg text-gray-300 leading-relaxed">
-              MACO Transportation is looking to hire local, regional, and OTR company drivers earning
-              up to 61 cents per mile
+              MACO Transportation is hiring local, regional, and OTR company drivers.
+              Top pay, new equipment, and a team that respects your time.
             </p>
 
             <div className="mt-10 space-y-4">
