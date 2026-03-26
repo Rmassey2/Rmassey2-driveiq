@@ -114,15 +114,20 @@ export async function POST(req: NextRequest) {
 
   if (isExcel) {
     const buffer = await file.arrayBuffer();
-    const workbook = XLSX.read(buffer, { type: "array" });
+    const uint8 = new Uint8Array(buffer);
+    const workbook = XLSX.read(uint8, { type: "array", cellDates: true });
     const sheetName = workbook.SheetNames[0];
     if (!sheetName) return NextResponse.json({ error: "Empty spreadsheet" }, { status: 400 });
-    const rawRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets[sheetName]);
-    // Convert all values to strings
+    const rawRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(
+      workbook.Sheets[sheetName],
+      { defval: "", raw: false }
+    );
+    // Convert all values to strings and normalize header names (trim whitespace)
     rows = rawRows.map((row) => {
       const stringRow: Record<string, string> = {};
       for (const [key, val] of Object.entries(row)) {
-        stringRow[key] = val != null ? String(val) : "";
+        const trimmedKey = key.trim();
+        stringRow[trimmedKey] = val != null ? String(val).trim() : "";
       }
       return stringRow;
     });
@@ -134,6 +139,13 @@ export async function POST(req: NextRequest) {
   if (rows.length === 0) {
     return NextResponse.json({ error: "Empty or invalid file" }, { status: 400 });
   }
+
+  // Detect column names from first row (for diagnostics)
+  const detectedColumns = Object.keys(rows[0]);
+  console.log(`[Import] File: ${file.name}, Rows: ${rows.length}, Columns: ${detectedColumns.join(", ")}`);
+  if (rows.length > 0) console.log(`[Import] Row 0:`, JSON.stringify(rows[0]));
+  if (rows.length > 1) console.log(`[Import] Row 1:`, JSON.stringify(rows[1]));
+  if (rows.length > 2) console.log(`[Import] Row 2:`, JSON.stringify(rows[2]));
 
   const { data: org } = await supabase
     .from("organizations")
@@ -163,38 +175,65 @@ export async function POST(req: NextRequest) {
     return match?.id ?? defaultRecruiter?.id ?? null;
   }
 
+  // Build a case-insensitive column lookup map from the first row
+  // Maps lowercase trimmed column name → actual column key in the row objects
+  const colMap = new Map<string, string>();
+  for (const key of Object.keys(rows[0])) {
+    colMap.set(key.toLowerCase().trim(), key);
+  }
+
+  /** Get value from row using case-insensitive column lookup, trying multiple names */
+  function col(row: Record<string, string>, ...names: string[]): string {
+    for (const name of names) {
+      const actualKey = colMap.get(name.toLowerCase().trim());
+      if (actualKey && row[actualKey] != null && row[actualKey] !== "") {
+        return row[actualKey].trim();
+      }
+    }
+    return "";
+  }
+
   let created = 0;
   let updated = 0;
   let skipped = 0;
   let dnhBlocked = 0;
+  const skipReasons: Record<string, number> = {};
+
+  function skip(reason: string) {
+    skipped++;
+    skipReasons[reason] = (skipReasons[reason] ?? 0) + 1;
+  }
 
   for (const row of rows) {
-    // --- Extract fields with column name variations ---
+    // --- Extract fields with case-insensitive column name variations ---
 
     // Name: try "First Name"/"Last Name" first, then "Name" (Last, First)
-    let firstName = row["First Name"] ?? "";
-    let lastName = row["Last Name"] ?? "";
-    if (!firstName && !lastName && row["Name"]) {
-      const parsed = parseLastCommaFirst(row["Name"]);
-      firstName = parsed.first;
-      lastName = parsed.last;
+    let firstName = col(row, "First Name");
+    let lastName = col(row, "Last Name");
+    if (!firstName && !lastName) {
+      const nameVal = col(row, "Name");
+      if (nameVal) {
+        const parsed = parseLastCommaFirst(nameVal);
+        firstName = parsed.first;
+        lastName = parsed.last;
+      }
     }
 
-    // Phone: "Phone" or "Pri Phone"
-    const phoneRaw = row["Phone"] ?? row["Pri Phone"] ?? "";
+    // Phone: "Phone", "Pri Phone", "Primary Phone", "Cell Phone"
+    const phoneRaw = col(row, "Phone", "Pri Phone", "Primary Phone", "Cell Phone");
     const phone = normalizePhone(phoneRaw);
 
-    const email = (row["Email"] ?? "").toLowerCase().trim();
-    const applicantId = row["Applicant ID"] ?? "";
-    const statusRaw = row["Status"] ?? "";
-    const source = row["Source"] ?? "";
-    const cdlNumber = row["CDL Number"] ?? row["CDL"] ?? "";
-    const worklist = row["Worklist"] ?? "";
-    const recruiterName = row["Recruiter"] ?? "";
-    const dob = row["DOB"] ?? "";
+    const email = col(row, "Email", "E-mail", "Email Address").toLowerCase().trim();
+    const applicantId = col(row, "Applicant ID", "ApplicantID", "App ID");
+    const statusRaw = col(row, "Status");
+    const source = col(row, "Source");
+    const cdlNumber = col(row, "CDL Number", "CDL", "CDL#", "CDL Num");
+    const worklist = col(row, "Worklist", "Work List");
+    const recruiterName = col(row, "Recruiter");
+    const dob = col(row, "DOB", "Date of Birth", "Birth Date");
 
     if (!phone && !email) {
-      skipped++;
+      skip("no_phone_or_email");
       continue;
     }
 
@@ -285,5 +324,13 @@ export async function POST(req: NextRequest) {
     records_skipped: skipped,
   });
 
-  return NextResponse.json({ processed: rows.length, created, updated, skipped, dnh_blocked: dnhBlocked });
+  return NextResponse.json({
+    processed: rows.length,
+    created,
+    updated,
+    skipped,
+    dnh_blocked: dnhBlocked,
+    skip_reasons: skipReasons,
+    detected_columns: detectedColumns,
+  });
 }

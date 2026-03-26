@@ -8,6 +8,8 @@ interface ImportResult {
   updated: number;
   skipped: number;
   dnh_blocked?: number;
+  skip_reasons?: Record<string, number>;
+  detected_columns?: string[];
 }
 
 export default function ImportPage() {
@@ -161,6 +163,25 @@ export default function ImportPage() {
               </div>
             )}
           </div>
+
+          {result.detected_columns && result.detected_columns.length > 0 && (
+            <div className="mt-3 border-t border-gray-700/50 pt-3">
+              <p className="text-xs text-gray-400">
+                Detected columns: <span className="font-mono text-gray-300">{result.detected_columns.join(", ")}</span>
+              </p>
+            </div>
+          )}
+
+          {result.skip_reasons && Object.keys(result.skip_reasons).length > 0 && (
+            <div className="mt-2">
+              <p className="text-xs font-medium text-yellow-400">Skip reasons:</p>
+              {Object.entries(result.skip_reasons).map(([reason, count]) => (
+                <p key={reason} className="text-xs text-gray-400">
+                  {reason.replace(/_/g, " ")}: <span className="text-white">{count}</span>
+                </p>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>
