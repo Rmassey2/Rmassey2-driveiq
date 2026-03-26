@@ -94,14 +94,14 @@ active | considering | contact_later | do_not_hire | hired | withdrew | archived
 ### Sessions Completed
 - **Session 1** — scaffold, auth, role-based dashboard shell, Randall and Jacob user accounts
 - **Session 2** — Webflow webhook intake, lead scoring, Twilio SMS confirmation, drip enrollment, Jacob pipeline dashboard, Quick Add, slide-over detail panel, DNH flag, Contact Later, call log, drip engine cron, contact-later cron, Tenstreet CSV import, source attribution API
+- **Session 3** — Retention dashboard, hired_drivers management, auto-hire flow (disposition→hired creates record + schedules check-ins), check-in scheduler (day 1/7/30/60/90/180/annual), 5-dimension satisfaction scoring, retention risk engine cron, Yellow/Red alert routing (SMS + email to DM and admin), flag management, exit interview form, separation flow with rehire eligibility
 
 ### Sessions Remaining
-- **Session 3** — Retention engine: hired_drivers management, check-in scheduler (30/60/90/180/annual), 5-dimension satisfaction scoring, retention risk score (11 triggers), Yellow/Red alert routing to DM and Ops, exit interview form, retention dashboard
 - **Session 4** — AI CMO: Claude API ad copy generator, Facebook content calendar, review request SMS at Day 30 post-hire, CMO approval inbox, autonomous action log, cost-per-hire analytics dashboard
 - **Session 5** — Monthly CMO report generator, competitive intel scanner, source attribution dashboard UI, full app polish, mobile responsiveness, error states, loading states
 
 ### Environment Variables Required
-NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM_NUMBER, RESEND_API_KEY, RESEND_FROM_RECRUITING, RESEND_FROM_NEWSLETTER, RESEND_FROM_NAME, META_APP_ID, META_APP_SECRET, META_PAGE_ACCESS_TOKEN, META_PAGE_ID, META_AD_ACCOUNT_ID, ANTHROPIC_API_KEY, GOOGLE_REVIEW_LINK, NEXT_PUBLIC_APP_URL, NEXT_PUBLIC_ORG_SLUG, WEBFLOW_WEBHOOK_SECRET, CRON_SECRET
+NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM_NUMBER, RESEND_API_KEY, RESEND_FROM_RECRUITING, RESEND_FROM_NEWSLETTER, RESEND_FROM_NAME, META_APP_ID, META_APP_SECRET, META_PAGE_ACCESS_TOKEN, META_PAGE_ID, META_AD_ACCOUNT_ID, ANTHROPIC_API_KEY, GOOGLE_REVIEW_LINK, NEXT_PUBLIC_APP_URL, NEXT_PUBLIC_ORG_SLUG, WEBFLOW_WEBHOOK_SECRET, CRON_SECRET, ADMIN_PHONE
 
 ### How to Start Each Session
 Open Claude Code in the driveiq project directory. Say which session you are working on. Claude Code will read this file and have full context without needing re-explanation.
