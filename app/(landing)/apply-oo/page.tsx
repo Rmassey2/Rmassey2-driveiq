@@ -38,15 +38,23 @@ export default function ApplyOwnerOpPage() {
     };
 
     try {
+      console.log("[Apply-OO] Posting to /api/webhooks/webflow-lead", payload);
       const res = await fetch("/api/webhooks/webflow-lead", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      if (!res.ok) throw new Error("Server error");
+      console.log("[Apply-OO] Response status:", res.status);
+      const data = await res.json();
+      console.log("[Apply-OO] Response body:", data);
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || `Server returned ${res.status}`);
+      }
       setSubmitted(true);
-    } catch {
-      setError("Something went wrong. Please try again or call us directly.");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Unknown error";
+      console.error("[Apply-OO] Submit error:", msg);
+      setError(`Something went wrong: ${msg}. Please try again or call us directly.`);
     } finally {
       setSubmitting(false);
     }

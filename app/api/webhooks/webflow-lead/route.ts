@@ -33,6 +33,7 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  console.log("WEBHOOK RECEIVED", new Date().toISOString(), "method:", req.method);
   // Parse body — always return 200 to prevent Webflow from disabling the webhook
   let rawBody: string;
   let body: Record<string, unknown>;
