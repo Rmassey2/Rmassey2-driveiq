@@ -16,11 +16,19 @@ export async function GET(req: NextRequest) {
 
   const { data, error } = await supabase
     .from("hired_drivers")
-    .select("*")
+    .select("*, driver_leads:lead_id(full_name, phone)")
     .eq("org_id", org.id)
     .order("hire_date", { ascending: false });
 
-  if (error) return NextResponse.json({ error: "Query failed" }, { status: 500 });
+  if (error) {
+    // Fallback without join
+    const { data: simple } = await supabase
+      .from("hired_drivers")
+      .select("*")
+      .eq("org_id", org.id)
+      .order("hire_date", { ascending: false });
+    return NextResponse.json(simple ?? []);
+  }
   return NextResponse.json(data ?? []);
 }
 

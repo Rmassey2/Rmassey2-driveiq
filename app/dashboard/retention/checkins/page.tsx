@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import EmptyState from "@/components/empty-state";
 
 interface CheckinRow {
   id: string;
@@ -10,7 +11,6 @@ interface CheckinRow {
   scheduled_at: string;
   completed_at: string | null;
   missed: boolean | null;
-  hired_drivers?: { lead_id: string | null } | null;
 }
 
 export default function CheckinsPage() {
@@ -18,24 +18,20 @@ export default function CheckinsPage() {
   const [checkins, setCheckins] = useState<CheckinRow[]>([]);
   const [driverNames, setDriverNames] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const fetchCheckins = useCallback(async () => {
-    const res = await fetch("/api/retention/checkins-list");
-    if (res.ok) {
-      const json = await res.json();
-      const rows = (json.checkins ?? []) as CheckinRow[];
-      setCheckins(rows);
-
-      // Build driver name map from lead_id → name via API response
-      const nameMap = (json.names ?? {}) as Record<string, string>;
-      const driverNameMap: Record<string, string> = {};
-      for (const c of rows) {
-        const leadId = (c.hired_drivers as { lead_id: string | null } | null)?.lead_id;
-        if (leadId && nameMap[leadId]) {
-          driverNameMap[c.driver_id] = nameMap[leadId];
-        }
+    try {
+      const res = await fetch("/api/retention/checkins-list");
+      if (res.ok) {
+        const json = await res.json();
+        setCheckins((json.checkins ?? []) as CheckinRow[]);
+        setDriverNames((json.names ?? {}) as Record<string, string>);
+      } else {
+        setError("Failed to load check-ins");
       }
-      setDriverNames(driverNameMap);
+    } catch {
+      setError("Failed to load check-ins");
     }
     setLoading(false);
   }, []);
@@ -43,6 +39,26 @@ export default function CheckinsPage() {
   useEffect(() => {
     fetchCheckins();
   }, [fetchCheckins]);
+
+  if (loading) return <p className="text-gray-400">Loading check-ins...</p>;
+
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <h1 className="text-2xl font-bold text-white">Check-ins</h1>
+        <div className="rounded-lg bg-red-500/10 p-4 text-sm text-red-400">{error}</div>
+      </div>
+    );
+  }
+
+  if (checkins.length === 0) {
+    return (
+      <div className="space-y-6">
+        <h1 className="text-2xl font-bold text-white">Check-ins</h1>
+        <EmptyState message="No check-ins scheduled yet. Check-ins are auto-created when a driver is marked as Hired." />
+      </div>
+    );
+  }
 
   const today = new Date().toISOString().split("T")[0];
   const weekFromNow = new Date(Date.now() + 7 * 86400000).toISOString().split("T")[0];
@@ -61,8 +77,6 @@ export default function CheckinsPage() {
   const completedThisMonth = checkins.filter(
     (c) => c.completed_at && c.completed_at >= monthStart.toISOString()
   );
-
-  if (loading) return <p className="text-gray-400">Loading check-ins...</p>;
 
   return (
     <div className="space-y-8">
