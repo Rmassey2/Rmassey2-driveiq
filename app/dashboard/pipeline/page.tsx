@@ -27,9 +27,22 @@ export default function PipelinePage() {
   const [merging, setMerging] = useState<string | null>(null);
 
   const fetchLeads = useCallback(async () => {
+    // First get user's org_id via org_members
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { setLoading(false); return; }
+
+    const { data: member } = await supabase
+      .from("org_members")
+      .select("org_id")
+      .eq("user_id", user.id)
+      .single();
+
+    if (!member?.org_id) { setLoading(false); return; }
+
     const { data } = await supabase
       .from("driver_leads")
       .select("*")
+      .eq("org_id", member.org_id)
       .in("disposition", ["active", "considering", "contact_later"])
       .eq("do_not_hire", false)
       .order("lead_score", { ascending: false });
