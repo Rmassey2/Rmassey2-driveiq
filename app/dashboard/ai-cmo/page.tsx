@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/client";
 
 interface InboxItem {
   id: string;
@@ -31,18 +30,6 @@ export default function AiCmoDashboard() {
 
   useEffect(() => {
     async function load() {
-      const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      // Check role
-      const { data: member } = await supabase
-        .from("org_members")
-        .select("role")
-        .eq("user_id", user.id)
-        .single();
-      if (member?.role !== "admin") return;
-
       // Fetch inbox items (pending)
       const inboxRes = await fetch("/api/cmo/inbox?status=pending");
       const inbox: InboxItem[] = inboxRes.ok ? await inboxRes.json() : [];
@@ -57,13 +44,8 @@ export default function AiCmoDashboard() {
       );
 
       // Fetch autonomous actions
-      const { data: actions } = await supabase
-        .from("autonomous_actions")
-        .select("*")
-        .order("created_at", { ascending: false })
-        .limit(10);
-
-      const allActions = actions ?? [];
+      const actionsRes = await fetch("/api/cmo/actions");
+      const allActions: AutonomousAction[] = actionsRes.ok ? await actionsRes.json() : [];
       setRecentActions(allActions.slice(0, 5));
 
       // Count this month

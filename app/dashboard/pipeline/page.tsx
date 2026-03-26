@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { createClient } from "@/lib/supabase/client";
 import type { DriverLead } from "@/lib/types";
 import AddLeadModal from "./add-lead-modal";
 import LeadSlideOver from "./lead-slideover";
@@ -15,7 +14,6 @@ function normalizePhone(raw: string): string {
 }
 
 export default function PipelinePage() {
-  const supabase = createClient();
   const [leads, setLeads] = useState<DriverLead[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<Filter>("all");
@@ -27,28 +25,12 @@ export default function PipelinePage() {
   const [merging, setMerging] = useState<string | null>(null);
 
   const fetchLeads = useCallback(async () => {
-    // First get user's org_id via org_members
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { setLoading(false); return; }
-
-    const { data: member } = await supabase
-      .from("org_members")
-      .select("org_id")
-      .eq("user_id", user.id)
-      .single();
-
-    if (!member?.org_id) { setLoading(false); return; }
-
-    const { data } = await supabase
-      .from("driver_leads")
-      .select("*")
-      .eq("org_id", member.org_id)
-      .in("disposition", ["active", "considering", "contact_later"])
-      .eq("do_not_hire", false)
-      .order("lead_score", { ascending: false });
-    setLeads((data as DriverLead[]) ?? []);
+    const res = await fetch("/api/leads/list?disposition=active,considering,contact_later&dnh=false");
+    if (res.ok) {
+      setLeads(await res.json());
+    }
     setLoading(false);
-  }, [supabase]);
+  }, []);
 
   useEffect(() => {
     fetchLeads();
@@ -119,8 +101,12 @@ export default function PipelinePage() {
 
   async function handleMerge(keepId: string, deleteId: string) {
     setMerging(keepId);
-    // Delete the lesser record
-    await supabase.from("driver_leads").delete().eq("id", deleteId);
+    // Archive the lesser record (mark as archived instead of hard delete)
+    await fetch(`/api/leads/${deleteId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ disposition: "archived" }),
+    });
     await fetchLeads();
     setMerging(null);
   }

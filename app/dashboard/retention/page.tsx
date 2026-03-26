@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
 
 interface RetentionDriver {
   id: string;
@@ -24,20 +23,16 @@ interface RetentionDriver {
 type Filter = "all" | "red" | "yellow" | "green" | "separated";
 
 export default function RetentionPage() {
-  const supabase = createClient();
   const router = useRouter();
   const [drivers, setDrivers] = useState<RetentionDriver[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<Filter>("all");
 
   const fetchDrivers = useCallback(async () => {
-    const { data } = await supabase
-      .from("v_retention_dashboard")
-      .select("*")
-      .order("retention_risk_score", { ascending: false });
-    setDrivers((data as RetentionDriver[]) ?? []);
+    const res = await fetch("/api/retention/list");
+    if (res.ok) setDrivers(await res.json());
     setLoading(false);
-  }, [supabase]);
+  }, []);
 
   useEffect(() => {
     fetchDrivers();

@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
 
 interface CheckinRow {
   id: string;
@@ -15,52 +14,31 @@ interface CheckinRow {
 }
 
 export default function CheckinsPage() {
-  const supabase = createClient();
   const router = useRouter();
   const [checkins, setCheckins] = useState<CheckinRow[]>([]);
   const [driverNames, setDriverNames] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
 
   const fetchCheckins = useCallback(async () => {
-    const { data } = await supabase
-      .from("checkins")
-      .select("id, driver_id, checkin_type, scheduled_at, completed_at, missed, hired_drivers(lead_id)")
-      .order("scheduled_at", { ascending: true });
+    const res = await fetch("/api/retention/checkins-list");
+    if (res.ok) {
+      const json = await res.json();
+      const rows = (json.checkins ?? []) as CheckinRow[];
+      setCheckins(rows);
 
-    const rows = (data ?? []) as unknown as CheckinRow[];
-    setCheckins(rows);
-
-    // Fetch driver names from driver_leads via lead_id
-    const leadIds = new Set<string>();
-    const driverToLead: Record<string, string> = {};
-    for (const c of rows) {
-      const leadId = (c.hired_drivers as { lead_id: string | null } | null)?.lead_id;
-      if (leadId) {
-        leadIds.add(leadId);
-        driverToLead[c.driver_id] = leadId;
-      }
-    }
-
-    if (leadIds.size > 0) {
-      const { data: leads } = await supabase
-        .from("driver_leads")
-        .select("id, full_name")
-        .in("id", Array.from(leadIds));
-
-      const nameMap: Record<string, string> = {};
-      for (const lead of leads ?? []) {
-        nameMap[lead.id] = lead.full_name;
-      }
-
+      // Build driver name map from lead_id → name via API response
+      const nameMap = (json.names ?? {}) as Record<string, string>;
       const driverNameMap: Record<string, string> = {};
-      for (const [dId, lId] of Object.entries(driverToLead)) {
-        driverNameMap[dId] = nameMap[lId] ?? "Unknown";
+      for (const c of rows) {
+        const leadId = (c.hired_drivers as { lead_id: string | null } | null)?.lead_id;
+        if (leadId && nameMap[leadId]) {
+          driverNameMap[c.driver_id] = nameMap[leadId];
+        }
       }
       setDriverNames(driverNameMap);
     }
-
     setLoading(false);
-  }, [supabase]);
+  }, []);
 
   useEffect(() => {
     fetchCheckins();

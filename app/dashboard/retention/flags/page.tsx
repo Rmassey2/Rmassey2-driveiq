@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { createClient } from "@/lib/supabase/client";
 
 interface Flag {
   id: string;
@@ -36,7 +35,6 @@ interface HiredDriverOption {
 }
 
 export default function FlagsPage() {
-  const supabase = createClient();
   const [flags, setFlags] = useState<Flag[]>([]);
   const [driverNames, setDriverNames] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
@@ -53,75 +51,29 @@ export default function FlagsPage() {
     notes: "",
   });
 
-  const fetchFlags = useCallback(async () => {
-    const { data } = await supabase
-      .from("retention_flags")
-      .select("*")
-      .eq("resolved", false)
-      .order("flagged_at", { ascending: false });
-    setFlags((data ?? []) as Flag[]);
+  const fetchData = useCallback(async () => {
+    const res = await fetch("/api/retention/flags-list");
+    if (res.ok) {
+      const json = await res.json();
+      const allFlags = (json.flags ?? []) as Flag[];
+      // Only show unresolved
+      setFlags(allFlags.filter((f) => !f.resolved));
 
-    // Get driver names via hired_drivers -> driver_leads
-    const driverIds = Array.from(new Set((data ?? []).map((f: Flag) => f.driver_id)));
-    if (driverIds.length > 0) {
-      const { data: hds } = await supabase
-        .from("hired_drivers")
-        .select("id, lead_id")
-        .in("id", driverIds);
+      // Build driver name map from the drivers list
+      const driverList = (json.drivers ?? []) as { id: string; full_name: string }[];
+      const nameMap: Record<string, string> = {};
+      for (const d of driverList) nameMap[d.id] = d.full_name;
+      setDriverNames(nameMap);
 
-      const leadIds = (hds ?? []).map((h: { lead_id: string | null }) => h.lead_id).filter(Boolean) as string[];
-      if (leadIds.length > 0) {
-        const { data: leads } = await supabase
-          .from("driver_leads")
-          .select("id, full_name")
-          .in("id", leadIds);
-
-        const leadNameMap: Record<string, string> = {};
-        for (const l of leads ?? []) leadNameMap[l.id] = l.full_name;
-
-        const nameMap: Record<string, string> = {};
-        for (const h of hds ?? []) {
-          const hd = h as { id: string; lead_id: string | null };
-          if (hd.lead_id && leadNameMap[hd.lead_id]) {
-            nameMap[hd.id] = leadNameMap[hd.lead_id];
-          }
-        }
-        setDriverNames(nameMap);
-      }
+      // Set drivers for the create form (add a fake org_id since API handles it)
+      setDrivers(driverList.map((d) => ({ ...d, org_id: "" })));
     }
-
     setLoading(false);
-  }, [supabase]);
-
-  const fetchDrivers = useCallback(async () => {
-    const { data: hds } = await supabase
-      .from("hired_drivers")
-      .select("id, lead_id, org_id")
-      .in("status", ["active", "at_risk", "fragile"]);
-
-    const leadIds = (hds ?? []).map((h: { lead_id: string | null }) => h.lead_id).filter(Boolean) as string[];
-    if (leadIds.length > 0) {
-      const { data: leads } = await supabase
-        .from("driver_leads")
-        .select("id, full_name")
-        .in("id", leadIds);
-
-      const leadNameMap: Record<string, string> = {};
-      for (const l of leads ?? []) leadNameMap[l.id] = l.full_name;
-
-      const options: HiredDriverOption[] = (hds ?? []).map((h: { id: string; lead_id: string | null; org_id: string }) => ({
-        id: h.id,
-        full_name: h.lead_id ? (leadNameMap[h.lead_id] ?? "Unknown") : "Unknown",
-        org_id: h.org_id,
-      }));
-      setDrivers(options);
-    }
-  }, [supabase]);
+  }, []);
 
   useEffect(() => {
-    fetchFlags();
-    fetchDrivers();
-  }, [fetchFlags, fetchDrivers]);
+    fetchData();
+  }, [fetchData]);
 
   async function createFlag(e: React.FormEvent) {
     e.preventDefault();
@@ -143,7 +95,7 @@ export default function FlagsPage() {
 
     setShowCreate(false);
     setNewFlag({ driver_id: "", trigger_type: "miles_low", risk_points: 2, notes: "" });
-    fetchFlags();
+    fetchData();
   }
 
   async function resolveFlag() {
@@ -159,7 +111,7 @@ export default function FlagsPage() {
     });
     setResolveId(null);
     setResolveNotes("");
-    fetchFlags();
+    fetchData();
   }
 
   const inputCls =
