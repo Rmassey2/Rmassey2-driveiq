@@ -131,3 +131,61 @@ export interface PipelineEvent {
   note: string | null;
   occurred_at: string;
 }
+
+export interface CmoInboxItem {
+  id: string;
+  org_id: string;
+  item_type: string;
+  title: string;
+  description: string | null;
+  priority: string;
+  status: string;
+  source_action_id: string | null;
+  meta: Record<string, unknown> | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AutonomousAction {
+  id: string;
+  org_id: string;
+  action_type: string;
+  description: string;
+  reasoning: string | null;
+  affected_record_id: string | null;
+  affected_table: string | null;
+  meta: Record<string, unknown> | null;
+  created_at: string;
+}
+
+export interface AiCampaign {
+  id: string;
+  org_id: string;
+  name: string;
+  segment: string | null;
+  ad_type: string | null;
+  headline: string | null;
+  body: string | null;
+  cta: string | null;
+  targeting_suggestion: string | null;
+  platform: string | null;
+  status: string;
+  budget_cents: number | null;
+  meta: Record<string, unknown> | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ContentPost {
+  id: string;
+  org_id: string;
+  post_type: string;
+  title: string;
+  body: string;
+  platform: string | null;
+  scheduled_for: string | null;
+  status: string;
+  meta: Record<string, unknown> | null;
+  created_at: string;
+  updated_at: string;
+}
