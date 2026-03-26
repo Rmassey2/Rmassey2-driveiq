@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { scheduleCheckins } from "@/lib/checkin-scheduler";
 
 function svc() {
   return createClient(
@@ -83,6 +84,42 @@ export async function PATCH(
   if (error) {
     console.error("Update lead error:", error);
     return NextResponse.json({ error: "Update failed" }, { status: 500 });
+  }
+
+  // Auto-create hired_drivers when disposition changes to hired
+  if (
+    current &&
+    body.disposition === "hired" &&
+    current.disposition !== "hired"
+  ) {
+    const hireDate = new Date().toISOString().split("T")[0];
+
+    // Check if already exists
+    const { data: existing } = await supabase
+      .from("hired_drivers")
+      .select("id")
+      .eq("lead_id", params.id)
+      .maybeSingle();
+
+    if (!existing) {
+      const { data: hired } = await supabase
+        .from("hired_drivers")
+        .insert({
+          org_id: current.org_id,
+          lead_id: params.id,
+          hire_date: hireDate,
+          segment: data?.segment_interest ?? null,
+          status: "active",
+          retention_risk_score: 0,
+          active_flags: [],
+        })
+        .select("id")
+        .single();
+
+      if (hired) {
+        await scheduleCheckins(supabase, current.org_id, hired.id, hireDate);
+      }
+    }
   }
 
   return NextResponse.json(data);

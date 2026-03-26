@@ -15,7 +15,9 @@ const navItems: NavItem[] = [
   { label: "Import Tenstreet", href: "/dashboard/pipeline/import", roles: ["admin"] },
   { label: "Check-ins", href: "/dashboard/checkins", roles: ["admin", "recruiter"] },
   { label: "My Drivers", href: "/dashboard/drivers", roles: ["admin", "dm"] },
-  { label: "Retention", href: "/dashboard/retention", roles: ["admin", "safety"] },
+  { label: "Retention", href: "/dashboard/retention", roles: ["admin", "safety", "dm"] },
+  { label: "Ret. Check-ins", href: "/dashboard/retention/checkins", roles: ["admin", "safety", "dm"] },
+  { label: "Risk Flags", href: "/dashboard/retention/flags", roles: ["admin", "safety", "dm"] },
   { label: "AI CMO", href: "/dashboard/ai-cmo", roles: ["admin"] },
   { label: "Reports", href: "/dashboard/reports", roles: ["admin"] },
 ];
