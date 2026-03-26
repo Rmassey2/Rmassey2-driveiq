@@ -215,10 +215,11 @@ export async function POST(req: NextRequest) {
   }
 
   // Send welcome SMS
-  await sendSMS(
+  const smsResult = await sendSMS(
     phone,
     `Hey ${firstName}, this is your Maco Transport recruiter — got your info and will be in touch shortly. Questions? Reply to this text. Reply STOP to opt out.`
   );
+  console.log("[Webflow Webhook] SMS result:", JSON.stringify(smsResult));
 
   // Alert recruiter on priority leads (score 70+)
   if (score >= 70) {
