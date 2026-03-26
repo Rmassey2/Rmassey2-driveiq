@@ -17,6 +17,7 @@ export default function ApplyOwnerOpPage() {
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    console.log("[Apply-OO] handleSubmit fired");
     setSubmitting(true);
     setError("");
 
@@ -137,9 +138,9 @@ export default function ApplyOwnerOpPage() {
                   </div>
                 </fieldset>
 
-                <select name="experience" required className="w-full rounded-lg bg-white/10 border border-white/20 px-4 py-3 text-white focus:border-[#d4a843] focus:outline-none focus:ring-1 focus:ring-[#d4a843]">
+                <select name="experience" required defaultValue="" className="w-full rounded-lg bg-white/10 border border-white/20 px-4 py-3 text-white focus:border-[#d4a843] focus:outline-none focus:ring-1 focus:ring-[#d4a843]">
                   {EXP_OPTIONS.map((o) => (
-                    <option key={o.value} value={o.value} disabled={!o.value} className="bg-[#0a1628]">
+                    <option key={o.value} value={o.value} hidden={!o.value} className="bg-[#0a1628]">
                       {o.label}
                     </option>
                   ))}
