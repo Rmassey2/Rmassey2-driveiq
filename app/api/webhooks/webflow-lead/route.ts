@@ -159,6 +159,25 @@ export async function POST(req: NextRequest) {
   const smsBody = `Hey ${firstName}, this is your Maco Transport recruiter — got your info and will be in touch shortly. Questions? Reply to this text. Reply STOP to opt out.`;
   await sendSMS(phone, smsBody);
 
+  // Alert recruiter on priority leads (score 70+)
+  if (score >= 70) {
+    const { data: recruiter } = await supabase
+      .from("org_members")
+      .select("phone")
+      .eq("org_id", org.id)
+      .eq("role", "recruiter")
+      .eq("is_active", true)
+      .limit(1)
+      .maybeSingle();
+
+    if (recruiter?.phone) {
+      await sendSMS(
+        recruiter.phone,
+        `PRIORITY LEAD — ${name.trim()} just applied. Score: ${score}. Segment: ${segment}. Phone: ${phone}. Check DriveIQ now.`
+      );
+    }
+  }
+
   // Enroll in drip campaign (only for new leads)
   if (!dup.existingId) {
     const { data: campaign } = await supabase
