@@ -118,3 +118,59 @@ Open Claude Code in the driveiq project directory. Say which session you are wor
 - npm run build — production build check
 - npm run lint — lint check
 - npx vercel --prod — deploy to production
+
+---
+
+## Current Status — April 2, 2026
+
+### What's Live and Working
+- DriveIQ app live at https://driveiq-virid.vercel.app
+- 189 leads in pipeline (186 from Tenstreet import + test leads)
+- 53 active drivers in retention engine (imported from Tenstreet active driver export)
+- /apply landing page live and capturing leads with UTM tracking
+- /apply-oo landing page live for owner-operators
+- Facebook Traffic campaign live: "Company Drivers - Traffic - Apr2026" pointing to /apply page with UTM tags
+- Webflow webhook configured on driveformaco.com (fires to DriveIQ via JS embed)
+- Lead scoring, duplicate detection, DNH blocking all working
+- Drip messages loaded with Tenstreet apply link in first message
+- Vercel deployment protection disabled (public access working)
+- Billing fixed in Meta Ads — Visa ending 9164 + $100 prepaid funds
+
+### Twilio Status (SMS not yet sending)
+- Toll-free number +18664025201: Verification submitted — pending approval (1-5 days)
+- Local 901 number +19015828745: A2P 10DLC campaign submitted — pending approval (2-3 weeks)
+- Business Profile approved by Twilio Trust Hub (Bundle SID: BUa346d24bc3b93fe44c16941b13fc17b3)
+- SMS will fire automatically when either number is approved — no code changes needed
+- First drip message includes Tenstreet apply link
+
+### Pending / In Progress
+- Twilio toll-free verification (check twilio.com > Phone Numbers > 866 number > Regulatory Information)
+- Twilio A2P campaign (check twilio.com > Messaging > Regulatory Compliance > A2P Messaging)
+- Owner Operators Facebook Traffic campaign (not yet created — duplicate Company Drivers campaign, point to /apply-oo)
+- getloaded.net Apply Now buttons still broken (need Webflow access to fix)
+- Active driver hire dates all show 3/25/2026 — need real hire dates updated
+- Active driver segments mostly blank — need to be filled in
+- Google Business Profile verification — postcard in mail (3-5 days)
+- Tenstreet API — waiting on rep response
+- UTM tags on Owner Operators Facebook campaign — not yet done
+- Privacy policy page needed for long-term Twilio compliance
+
+### Facebook Campaigns Status
+- Company Drivers - Traffic - Apr2026: ACTIVE — Traffic campaign, UTM tagged, points to /apply
+- Company Drivers v1: Should be turned OFF — has rejected ad error
+- Owner Operators: Still running as Lead Form campaign — needs to be converted to Traffic
+- Company Drivers (old): OFF
+
+### Known Issues / Limitations
+- driveformaco.com Webflow form not reliably sending to DriveIQ webhook (JS embed in place but Webflow Basic plan limitations)
+- No privacy policy page yet (using driveformaco.com as placeholder URL in Twilio)
+- All 53 active drivers have hire date of 3/25/2026 instead of real hire dates
+- Test Driver record in hired_drivers needs to be deleted
+
+### Next Session Priorities
+1. Confirm Twilio approval and test SMS end to end
+2. Create Owner Operators Traffic campaign in Facebook
+3. Fix Company Drivers v1 (turn off or delete)
+4. Update real hire dates for 53 active drivers
+5. Fix getloaded.net Apply buttons when Webflow access available
+6. Point driveformaco.com domain to DriveIQ /apply page (optional)
