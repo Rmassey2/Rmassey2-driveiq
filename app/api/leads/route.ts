@@ -87,6 +87,7 @@ export async function POST(req: NextRequest) {
     cdlClass: body.cdl_class as string,
     yearsExperience: body.years_experience as string,
     source: body.source as string,
+    zipCode: body.zip_code as string,
   });
 
   const segment = (body.segment_interest as string) ?? "OTR";

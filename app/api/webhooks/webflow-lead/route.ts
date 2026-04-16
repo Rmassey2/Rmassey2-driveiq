@@ -151,7 +151,7 @@ export async function POST(req: NextRequest) {
   }
 
   const firstName = name.trim().split(/\s+/)[0];
-  const score = calculateLeadScore({ cdlClass, yearsExperience, source: utmSource });
+  const score = calculateLeadScore({ cdlClass, yearsExperience, source: utmSource, zipCode });
 
   // Dedup check
   const dup = await findDuplicateLead(supabase, {
