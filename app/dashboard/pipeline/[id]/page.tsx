@@ -1,17 +1,23 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import type { DriverLead, CallLog } from "@/lib/types";
 
 export default function DriverDetailPage() {
   const params = useParams();
+  const router = useRouter();
   const id = params.id as string;
 
   const [lead, setLead] = useState<DriverLead | null>(null);
   const [calls, setCalls] = useState<CallLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState("");
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
 
   const [stage, setStage] = useState(1);
   const [disposition, setDisposition] = useState("active");
@@ -88,6 +94,19 @@ export default function DriverDetailPage() {
       setCallForm({ contact_type: "phone", outcome: "connected", callback_date: "", notes: "" });
       fetchCalls();
     }
+  }
+
+  async function deleteLead() {
+    setDeleting(true);
+    setDeleteError("");
+    const res = await fetch(`/api/leads/${id}`, { method: "DELETE" });
+    if (res.ok) {
+      router.push("/dashboard/pipeline");
+      return;
+    }
+    const msg = await res.json().catch(() => ({ error: "Delete failed" }));
+    setDeleteError(msg.error ?? "Delete failed");
+    setDeleting(false);
   }
 
   async function sendTenstreetLink() {
@@ -181,7 +200,7 @@ export default function DriverDetailPage() {
             </div>
           )}
 
-          <div className="flex gap-3">
+          <div className="flex flex-wrap gap-3">
             <button
               onClick={saveDetails}
               disabled={saving || (disposition === "do_not_hire" && (dnhConfirm !== "CONFIRM" || !dnhReason))}
@@ -195,6 +214,16 @@ export default function DriverDetailPage() {
               className="rounded-lg bg-white/10 px-4 py-2 text-sm text-white hover:bg-white/20 disabled:opacity-50"
             >
               {linkSent ? "Tenstreet Link Sent" : sendingLink ? "Sending..." : "Send Tenstreet Link"}
+            </button>
+            <button
+              onClick={() => {
+                setDeleteConfirm("");
+                setDeleteError("");
+                setShowDeleteModal(true);
+              }}
+              className="ml-auto rounded-lg border border-red-700 bg-red-900/30 px-4 py-2 text-sm font-semibold text-red-300 hover:bg-red-900/50"
+            >
+              Delete Lead
             </button>
           </div>
 
@@ -259,6 +288,45 @@ export default function DriverDetailPage() {
           </div>
         </div>
       </div>
+
+      {showDeleteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-md rounded-lg border border-red-800 bg-[#111d33] p-6 shadow-2xl">
+            <h3 className="text-lg font-bold text-red-300">Permanently Delete Lead</h3>
+            <p className="mt-2 text-sm text-gray-300">
+              This will permanently remove <span className="font-semibold text-white">{lead.full_name}</span> and all associated
+              call logs, pipeline events, drip enrollments, and review requests. This action cannot be undone.
+            </p>
+            <p className="mt-4 text-sm text-gray-400">
+              Type <span className="font-mono font-semibold text-red-300">DELETE</span> to confirm.
+            </p>
+            <input
+              type="text"
+              value={deleteConfirm}
+              onChange={(e) => setDeleteConfirm(e.target.value)}
+              className={inputCls}
+              autoFocus
+            />
+            {deleteError && <p className="mt-2 text-sm text-red-400">{deleteError}</p>}
+            <div className="mt-5 flex justify-end gap-3">
+              <button
+                onClick={() => setShowDeleteModal(false)}
+                disabled={deleting}
+                className="rounded-lg bg-white/10 px-4 py-2 text-sm text-white hover:bg-white/20 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={deleteLead}
+                disabled={deleting || deleteConfirm !== "DELETE"}
+                className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50"
+              >
+                {deleting ? "Deleting..." : "Delete Permanently"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
