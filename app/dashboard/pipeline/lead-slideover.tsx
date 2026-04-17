@@ -40,6 +40,12 @@ export default function LeadSlideOver({ lead, onClose, onUpdated }: Props) {
   const [sendingLink, setSendingLink] = useState(false);
   const [linkSent, setLinkSent] = useState(!!lead.tenstreet_link_sent_at);
 
+  // Delete state
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState("");
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
+
   const fetchCalls = useCallback(async () => {
     const res = await fetch(`/api/leads/call-log?lead_id=${lead.id}`);
     if (res.ok) setCalls(await res.json());
@@ -99,6 +105,26 @@ export default function LeadSlideOver({ lead, onClose, onUpdated }: Props) {
       setCallForm({ contact_type: "phone", outcome: "connected", callback_date: "", notes: "" });
       fetchCalls();
     }
+  }
+
+  async function deleteLead() {
+    setDeleting(true);
+    setDeleteError("");
+    const res = await fetch(`/api/leads/${lead.id}`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+    if (res.ok) {
+      setShowDeleteModal(false);
+      setDeleting(false);
+      onUpdated();
+      onClose();
+      return;
+    }
+    const msg = await res.json().catch(() => ({ error: "Delete failed" }));
+    setDeleteError(msg.error ?? "Delete failed");
+    setDeleting(false);
   }
 
   async function sendTenstreetLink() {
@@ -249,7 +275,7 @@ export default function LeadSlideOver({ lead, onClose, onUpdated }: Props) {
                 </div>
               )}
 
-              <div className="flex gap-3">
+              <div className="flex flex-wrap gap-3">
                 <button
                   onClick={saveDetails}
                   disabled={saving || (disposition === "do_not_hire" && (dnhConfirm !== "CONFIRM" || !dnhReason))}
@@ -266,6 +292,17 @@ export default function LeadSlideOver({ lead, onClose, onUpdated }: Props) {
                   {linkSent ? "Tenstreet Link Sent" : sendingLink ? "Sending..." : "Send Tenstreet Link"}
                 </button>
               </div>
+
+              <button
+                onClick={() => {
+                  setDeleteConfirm("");
+                  setDeleteError("");
+                  setShowDeleteModal(true);
+                }}
+                className="mt-2 w-full rounded-lg bg-red-600 px-4 py-2 text-sm font-bold text-white shadow-lg ring-1 ring-red-400/50 hover:bg-red-700"
+              >
+                Delete Lead Permanently
+              </button>
 
               {/* Driver info */}
               <div className="mt-6 space-y-2 border-t border-gray-700/50 pt-4">
@@ -398,6 +435,45 @@ export default function LeadSlideOver({ lead, onClose, onUpdated }: Props) {
           )}
         </div>
       </div>
+
+      {showDeleteModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4">
+          <div className="w-full max-w-md rounded-lg border border-red-700 bg-[#0a1628] p-6 shadow-2xl">
+            <h3 className="text-lg font-bold text-red-300">Permanently Delete Lead</h3>
+            <p className="mt-2 text-sm text-gray-300">
+              This will permanently remove <span className="font-semibold text-white">{current.full_name}</span> and all
+              associated call logs, pipeline events, drip enrollments, and review requests. This action cannot be undone.
+            </p>
+            <p className="mt-4 text-sm text-gray-400">
+              Type <span className="font-mono font-semibold text-red-300">DELETE</span> to confirm.
+            </p>
+            <input
+              type="text"
+              value={deleteConfirm}
+              onChange={(e) => setDeleteConfirm(e.target.value)}
+              autoFocus
+              className="mt-1 block w-full rounded-lg border border-gray-600 bg-[#0a1628] px-3 py-2 text-sm text-white focus:border-red-500 focus:outline-none"
+            />
+            {deleteError && <p className="mt-2 text-sm text-red-400">{deleteError}</p>}
+            <div className="mt-5 flex justify-end gap-3">
+              <button
+                onClick={() => setShowDeleteModal(false)}
+                disabled={deleting}
+                className="rounded-lg bg-white/10 px-4 py-2 text-sm text-white hover:bg-white/20 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={deleteLead}
+                disabled={deleting || deleteConfirm !== "DELETE"}
+                className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50"
+              >
+                {deleting ? "Deleting..." : "Delete Permanently"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
