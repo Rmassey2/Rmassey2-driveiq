@@ -23,10 +23,6 @@ export default function PipelinePage() {
   const [sortField, setSortField] = useState<keyof DriverLead>("lead_score");
   const [sortAsc, setSortAsc] = useState(false);
   const [merging, setMerging] = useState<string | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<DriverLead | null>(null);
-  const [deleteConfirmText, setDeleteConfirmText] = useState("");
-  const [deleting, setDeleting] = useState(false);
-  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const fetchLeads = useCallback(async () => {
     const res = await fetch("/api/leads/list?disposition=active,considering,contact_later&dnh=false");
@@ -101,27 +97,6 @@ export default function PipelinePage() {
       if (lead[f] != null && lead[f] !== "" && lead[f] !== false) count++;
     }
     return count;
-  }
-
-  async function handleDelete() {
-    if (!deleteTarget) return;
-    setDeleting(true);
-    setDeleteError(null);
-    const res = await fetch(`/api/leads/${deleteTarget.id}`, {
-      method: "DELETE",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({}),
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      setDeleteError(err?.error ?? "Delete failed");
-      setDeleting(false);
-      return;
-    }
-    setDeleting(false);
-    setDeleteTarget(null);
-    setDeleteConfirmText("");
-    await fetchLeads();
   }
 
   async function handleMerge(keepId: string, deleteId: string) {
@@ -360,16 +335,6 @@ export default function PipelinePage() {
                   >
                     Call Log
                   </button>
-                  <button
-                    onClick={() => {
-                      setDeleteTarget(lead);
-                      setDeleteConfirmText("");
-                      setDeleteError(null);
-                    }}
-                    className="rounded bg-red-500/20 px-2 py-1 text-xs text-red-400 hover:bg-red-500/30"
-                  >
-                    Delete
-                  </button>
                 </td>
               </tr>
             ))}
@@ -412,60 +377,6 @@ export default function PipelinePage() {
         />
       )}
 
-      {deleteTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="w-full max-w-md rounded-lg border border-red-500/40 bg-[#0a1628] p-6 shadow-xl">
-            <h2 className="text-lg font-bold text-red-400">
-              Permanently delete lead?
-            </h2>
-            <p className="mt-2 text-sm text-gray-300">
-              This will permanently remove{" "}
-              <span className="font-semibold text-white">
-                {deleteTarget.full_name}
-              </span>{" "}
-              ({deleteTarget.phone ?? deleteTarget.email ?? "no contact"}) and all
-              related records (pipeline events, call log, drip enrollments,
-              review requests). This cannot be undone.
-            </p>
-            <p className="mt-3 text-xs text-gray-400">
-              Type <span className="font-mono font-bold text-red-400">CONFIRM</span> below to proceed.
-            </p>
-            <input
-              autoFocus
-              type="text"
-              value={deleteConfirmText}
-              onChange={(e) => setDeleteConfirmText(e.target.value)}
-              placeholder="CONFIRM"
-              className="mt-2 w-full rounded-lg border border-gray-600 bg-[#111d33] px-3 py-2 text-sm text-white focus:border-red-500 focus:outline-none"
-            />
-            {deleteError && (
-              <p className="mt-2 rounded bg-red-500/10 px-3 py-2 text-xs text-red-400">
-                {deleteError}
-              </p>
-            )}
-            <div className="mt-4 flex justify-end gap-2">
-              <button
-                onClick={() => {
-                  setDeleteTarget(null);
-                  setDeleteConfirmText("");
-                  setDeleteError(null);
-                }}
-                disabled={deleting}
-                className="rounded-lg bg-gray-700 px-4 py-2 text-sm font-medium text-white hover:bg-gray-600 disabled:opacity-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleDelete}
-                disabled={deleting || deleteConfirmText !== "CONFIRM"}
-                className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-40"
-              >
-                {deleting ? "Deleting…" : "Delete Permanently"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
