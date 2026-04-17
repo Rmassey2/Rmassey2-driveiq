@@ -124,3 +124,67 @@ export async function PATCH(
 
   return NextResponse.json(data);
 }
+
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  const supabase = svc();
+
+  const { data: lead } = await supabase
+    .from("driver_leads")
+    .select("id, org_id, full_name, phone, email")
+    .eq("id", params.id)
+    .single();
+
+  if (!lead) {
+    return NextResponse.json({ error: "Lead not found" }, { status: 404 });
+  }
+
+  let performedBy: string | null = null;
+  try {
+    const body = (await req.json()) as { _performed_by?: string };
+    performedBy = body?._performed_by ?? null;
+  } catch {
+    // no body is fine
+  }
+
+  const childTables: Array<{ table: string; col: string }> = [
+    { table: "drip_sends", col: "driver_id" },
+    { table: "drip_enrollments", col: "driver_id" },
+    { table: "pipeline_events", col: "driver_id" },
+    { table: "call_log", col: "driver_id" },
+    { table: "review_requests", col: "driver_id" },
+    { table: "hired_drivers", col: "lead_id" },
+  ];
+
+  for (const { table, col } of childTables) {
+    const { error } = await supabase.from(table).delete().eq(col, params.id);
+    if (error && !error.message?.toLowerCase().includes("does not exist")) {
+      console.error(`Delete child ${table} failed:`, error);
+    }
+  }
+
+  const { error } = await supabase
+    .from("driver_leads")
+    .delete()
+    .eq("id", params.id);
+
+  if (error) {
+    console.error("Delete lead error:", error);
+    return NextResponse.json({ error: "Delete failed" }, { status: 500 });
+  }
+
+  await supabase.from("autonomous_actions").insert({
+    org_id: lead.org_id,
+    action_type: "lead_hard_delete",
+    description: `Permanently deleted lead "${lead.full_name}" (${lead.phone ?? lead.email ?? "no contact"})`,
+    reasoning: performedBy
+      ? `Deleted by user ${performedBy}`
+      : "Deleted from pipeline UI",
+    affected_record_id: params.id,
+    affected_table: "driver_leads",
+  });
+
+  return NextResponse.json({ ok: true, deleted_id: params.id });
+}
