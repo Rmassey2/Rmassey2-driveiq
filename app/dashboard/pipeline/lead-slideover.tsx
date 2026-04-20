@@ -46,6 +46,14 @@ export default function LeadSlideOver({ lead, onClose, onUpdated }: Props) {
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState("");
 
+  // Test SMS state
+  const [testSmsBody, setTestSmsBody] = useState("");
+  const [testSmsTo, setTestSmsTo] = useState("");
+  const [sendingTest, setSendingTest] = useState(false);
+  const [testResult, setTestResult] = useState<
+    { ok: true; sid?: string; to: string } | { ok: false; error: string } | null
+  >(null);
+
   const fetchCalls = useCallback(async () => {
     const res = await fetch(`/api/leads/call-log?lead_id=${lead.id}`);
     if (res.ok) setCalls(await res.json());
@@ -125,6 +133,27 @@ export default function LeadSlideOver({ lead, onClose, onUpdated }: Props) {
     const msg = await res.json().catch(() => ({ error: "Delete failed" }));
     setDeleteError(msg.error ?? "Delete failed");
     setDeleting(false);
+  }
+
+  async function sendTestSms() {
+    setSendingTest(true);
+    setTestResult(null);
+    const res = await fetch("/api/leads/test-sms", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        lead_id: lead.id,
+        to: testSmsTo.trim() || undefined,
+        message: testSmsBody.trim() || undefined,
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok && data?.success) {
+      setTestResult({ ok: true, sid: data.sid, to: data.to });
+    } else {
+      setTestResult({ ok: false, error: data?.error ?? `HTTP ${res.status}` });
+    }
+    setSendingTest(false);
   }
 
   async function sendTenstreetLink() {
@@ -405,6 +434,57 @@ export default function LeadSlideOver({ lead, onClose, onUpdated }: Props) {
 
           {tab === "drip" && (
             <div className="space-y-4">
+              <div className="rounded-lg border border-gray-700/50 bg-[#0a1628] p-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-white">Twilio 901 Test SMS</h3>
+                  <span className="text-xs text-gray-500">Sends from the 901 local number</span>
+                </div>
+                <p className="mt-1 text-xs text-gray-400">
+                  Verifies the 901 Twilio number is provisioned. Defaults to the lead&apos;s phone;
+                  override with another number below to send to your own phone instead.
+                </p>
+                <div className="mt-3 grid gap-2">
+                  <div>
+                    <label className={labelCls}>Destination (optional)</label>
+                    <input
+                      type="tel"
+                      placeholder={current.phone ?? "10-digit phone"}
+                      value={testSmsTo}
+                      onChange={(e) => setTestSmsTo(e.target.value)}
+                      className={inputCls}
+                    />
+                  </div>
+                  <div>
+                    <label className={labelCls}>Message (optional)</label>
+                    <textarea
+                      rows={2}
+                      placeholder="Leave blank to send a default test message."
+                      value={testSmsBody}
+                      onChange={(e) => setTestSmsBody(e.target.value)}
+                      className={inputCls}
+                    />
+                  </div>
+                  <button
+                    onClick={sendTestSms}
+                    disabled={sendingTest}
+                    className="rounded-lg bg-[#c8a951] px-4 py-2 text-sm font-semibold text-[#0a1628] disabled:opacity-50"
+                  >
+                    {sendingTest ? "Sending..." : "Send Test SMS via 901"}
+                  </button>
+                  {testResult?.ok && (
+                    <p className="rounded bg-green-500/10 px-3 py-2 text-xs text-green-400">
+                      Sent to {testResult.to}
+                      {testResult.sid ? ` (SID ${testResult.sid})` : ""}
+                    </p>
+                  )}
+                  {testResult && !testResult.ok && (
+                    <p className="rounded bg-red-500/10 px-3 py-2 text-xs text-red-400">
+                      {testResult.error}
+                    </p>
+                  )}
+                </div>
+              </div>
+
               <h3 className="text-sm font-medium text-gray-400">Drip Enrollment Status</h3>
               {enrollments.length === 0 && (
                 <p className="text-sm text-gray-500">

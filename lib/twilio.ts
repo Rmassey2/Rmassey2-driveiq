@@ -1,7 +1,11 @@
-export async function sendSMS(to: string, body: string): Promise<{ success: boolean; sid?: string; error?: string }> {
+export async function sendSMS(
+  to: string,
+  body: string,
+  fromOverride?: string
+): Promise<{ success: boolean; sid?: string; error?: string }> {
   const accountSid = process.env.TWILIO_ACCOUNT_SID;
   const authToken = process.env.TWILIO_AUTH_TOKEN;
-  const from = process.env.TWILIO_FROM_NUMBER;
+  const from = fromOverride ?? process.env.TWILIO_FROM_NUMBER;
 
   if (!accountSid || !authToken || !from) {
     console.warn("Twilio not configured — skipping SMS");
