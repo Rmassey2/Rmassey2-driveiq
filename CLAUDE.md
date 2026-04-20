@@ -111,7 +111,7 @@ active | considering | contact_later | do_not_hire | hired | withdrew | archived
 - **Session 3** — Retention dashboard, hired_drivers management, auto-hire flow (disposition→hired creates record + schedules check-ins), check-in scheduler (day 1/7/30/60/90/180/annual), 5-dimension satisfaction scoring, retention risk engine cron, Yellow/Red alert routing (SMS + email to DM and admin), flag management, exit interview form, separation flow with rehire eligibility
 - **Session 4A** — AI CMO dashboard, CMO approval inbox with Approve/Edit/Dismiss, AI Ad Studio (Claude API ad generation, Facebook preview, campaign table), Content Calendar (weekly view, Generate Week, post management)
 - **Session 4B** — Review request system (Day 30 Google, Day 45 Facebook, Claude-personalized SMS, autonomous action logging), source attribution dashboard (recharts bar chart, channel table, Facebook quality callout), monthly CMO report generator (Claude AI executive summary + 3 recommendations, HTML email to admin), competitive intel scanner (Claude AI every 48h, auto-creates inbox items), shared components (skeleton, empty-state, toast, error-boundary), dashboard home polish (priority leads, overdue check-ins, open flags, pending approvals, activity feed), sign out button, mobile responsive tables
-- **Session 5 (April 2026)** — Lead deletion flow (DELETE endpoint, confirmation modal in slide-over and detail page, autonomous_actions audit logging), Meta Ads API campaign optimizer, Vercel production deployment hardening
+- **Session 5 (April 2026)** — Lead deletion flow (DELETE endpoint, confirmation modal in slide-over and detail page, autonomous_actions audit logging), Meta Ads API campaign optimizer, Vercel production deployment hardening, manual Twilio 901 test SMS button in the slide-over Drip Status tab (POST /api/leads/test-sms, audit logged as sms_test)
 
 ### Known Limitations / Future Work
 - **Tenstreet API** — CSV import only currently; direct API integration planned for Phase 2
@@ -123,7 +123,9 @@ active | considering | contact_later | do_not_hire | hired | withdrew | archived
 - **DAT API** — not yet integrated (see DAT Integration section below)
 
 ### Environment Variables Required
-NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM_NUMBER, RESEND_API_KEY, RESEND_FROM_RECRUITING, RESEND_FROM_NEWSLETTER, RESEND_FROM_NAME, META_APP_ID, META_APP_SECRET, META_PAGE_ACCESS_TOKEN, META_PAGE_ID, META_AD_ACCOUNT_ID, ANTHROPIC_API_KEY, GOOGLE_REVIEW_LINK, NEXT_PUBLIC_APP_URL, NEXT_PUBLIC_ORG_SLUG, WEBFLOW_WEBHOOK_SECRET, CRON_SECRET, ADMIN_PHONE
+NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM_NUMBER, TWILIO_901_NUMBER, RESEND_API_KEY, RESEND_FROM_RECRUITING, RESEND_FROM_NEWSLETTER, RESEND_FROM_NAME, META_APP_ID, META_APP_SECRET, META_PAGE_ACCESS_TOKEN, META_PAGE_ID, META_AD_ACCOUNT_ID, ANTHROPIC_API_KEY, GOOGLE_REVIEW_LINK, NEXT_PUBLIC_APP_URL, NEXT_PUBLIC_ORG_SLUG, WEBFLOW_WEBHOOK_SECRET, CRON_SECRET, ADMIN_PHONE
+
+`TWILIO_901_NUMBER` drives the 901 test SMS button; falls back to `TWILIO_FROM_NUMBER` if unset, but explicit is better.
 
 Planned additions for DAT integration: DAT_API_KEY, DAT_API_SECRET, DAT_ACCOUNT_ID (names TBD based on DAT docs).
 
@@ -173,6 +175,14 @@ Last snapshot: early April 2026. Confirm current state in Meta Ads Manager befor
 ### UTM Convention
 All paid traffic to `/apply` and `/apply-oo` should carry `utm_source`, `utm_medium`, `utm_campaign`, `utm_content` so the Source Attribution dashboard (`/dashboard/reports`) can credit conversions correctly.
 
+### Campaign Optimization Playbook
+- **Ad generation** — AI CMO Ad Studio (`/dashboard/ai-cmo/ads`) drafts copy via Claude, previews Facebook format, and writes to `ai_campaigns`. Draft → Approve in the CMO inbox → copy-paste to Meta Ads Manager (auto-publish pending Meta API).
+- **Budget + targeting optimizer** — Meta Ads API campaign optimizer (Session 5) pulls spend vs. lead-to-hire from `v_source_attribution` and proposes budget shifts to top-performing channels; surfaces as `cmo_inbox_items` for admin approval.
+- **Weekly cadence** — review `/dashboard/reports` every Monday. Pause campaigns below the job-board average lead-to-hire rate once the app has 20+ hires; until then, spend is exploratory.
+- **Creative hygiene** — rotate ads that run > 14 days or whose CTR drops 30% from launch baseline; competitive intel scanner (every 48h) auto-drafts new angles based on competitor posts.
+- **UTM discipline** — every new ad set gets a distinct `utm_content` so the attribution dashboard can isolate creative performance, not just channel performance.
+- **Segment routing** — company-driver ads point to `/apply`, owner-op ads point to `/apply-oo`. Do not cross-route; the landing page sets `entry_point` on the lead, which is what the funnel reports group on.
+
 ---
 
 ## Current Status — April 20, 2026
@@ -197,6 +207,13 @@ All paid traffic to `/apply` and `/apply-oo` should carry `utm_source`, `utm_med
 - SMS will fire automatically when either number is approved — no code changes required
 - First drip message includes Tenstreet apply link
 
+### Twilio 901 Test SMS (manual verification)
+- Drip Status tab on the lead slide-over has a "Send Test SMS via 901" button backed by POST /api/leads/test-sms
+- Destination defaults to the lead's phone; an override field lets admin SMS their own phone
+- Uses `TWILIO_901_NUMBER` env var (falls back to `TWILIO_FROM_NUMBER` if unset)
+- Every test send is audited in autonomous_actions as `sms_test` with the Twilio SID or error message
+- If A2P 10DLC is still pending, Twilio error 30034 ("campaign not registered") surfaces in the UI — that is the canary for provisioning completion
+
 ### Pending / In Progress
 - Twilio toll-free verification (check twilio.com > Phone Numbers > 866 number > Regulatory Information)
 - Twilio A2P campaign (check twilio.com > Messaging > Regulatory Compliance > A2P Messaging)
@@ -215,6 +232,15 @@ All paid traffic to `/apply` and `/apply-oo` should carry `utm_source`, `utm_med
 - No privacy policy page yet (using driveformaco.com as placeholder URL in Twilio)
 - All 53 active drivers have hire date of 3/25/2026 instead of real hire dates
 - Test Driver record in hired_drivers needs to be deleted
+
+### Current Issues (blocking or recently surfaced)
+- **Twilio SMS not yet sending end-to-end** — both numbers pending; 901 test button available to canary provisioning
+- **`TWILIO_901_NUMBER` env var not yet set in Vercel** — test endpoint falls back to `TWILIO_FROM_NUMBER`; set to `+19015828745` in Production + Preview
+- **getloaded.net Apply Now buttons broken** — need Webflow editor access to fix; meanwhile owner-op traffic routes via Facebook → `/apply-oo`
+- **Webflow → DriveIQ webhook flaky** — JS embed on driveformaco.com occasionally drops submits; consider pointing the domain at `/apply` directly to remove Webflow from the path
+- **Hire-date hygiene** — 53 active driver records share hire_date 2026-03-25; retention risk scoring and tenure alerts are skewed until these are backfilled
+- **Page-visit analytics gap** — source attribution + conversion funnel are live; raw visits are not tracked yet (decision pending: custom Supabase table vs Vercel Analytics)
+- **DAT API** — not yet started; need account tier + credentials from Maco's DAT rep before implementation
 
 ---
 
@@ -246,12 +272,13 @@ DAT Freight & Analytics provides load board data, rate benchmarks, and lane anal
 ---
 
 ## Next Session Priorities
-1. Confirm Twilio approval and test SMS end to end
-2. Create Owner Operators Traffic campaign in Facebook and point it to `/apply-oo`
-3. Disable / delete Company Drivers v1 (rejected-ad error)
-4. Update real hire dates for the 53 active drivers
-5. Fix getloaded.net Apply buttons when Webflow access is available
-6. (Optional) point driveformaco.com at DriveIQ `/apply` instead of the Webflow form
-7. Kick off DAT API integration — confirm account tier, request credentials, build `lib/dat.ts` and the `dat_rate_cache` table
-8. Privacy policy page for long-term Twilio compliance
-9. Decide on page-visit analytics approach (custom Supabase table vs Vercel Analytics)
+1. Set `TWILIO_901_NUMBER=+19015828745` in Vercel env, then use the Drip Status tab "Send Test SMS via 901" button to canary provisioning
+2. Confirm Twilio A2P 10DLC + toll-free approval and test drip send end to end
+3. Create Owner Operators Traffic campaign in Facebook and point it to `/apply-oo`
+4. Disable / delete Company Drivers v1 (rejected-ad error)
+5. Update real hire dates for the 53 active drivers
+6. Fix getloaded.net Apply buttons when Webflow access is available
+7. (Optional) point driveformaco.com at DriveIQ `/apply` instead of the Webflow form
+8. Kick off DAT API integration — confirm account tier, request credentials, build `lib/dat.ts` and the `dat_rate_cache` table
+9. Privacy policy page for long-term Twilio compliance
+10. Decide on page-visit analytics approach (custom Supabase table vs Vercel Analytics)
