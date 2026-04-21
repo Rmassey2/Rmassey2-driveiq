@@ -106,7 +106,6 @@ export default function ApplyPage() {
               {[
                 "Up to 61 CPM — minimum 2,500 miles/week",
                 "Weekends home guaranteed (Regional & Local)",
-                "Brand new 2024 Freightliners",
                 "$500 referral bonus per hire",
                 "Full benefits from day one",
               ].map((item) => (
