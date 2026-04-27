@@ -102,6 +102,14 @@ export default function ApplyPage() {
               Top pay, new equipment, and a team that respects your time.
             </p>
 
+            <a
+              href="tel:+16628821593"
+              className="mt-6 block text-lg text-gray-200 hover:text-white"
+            >
+              Prefer to call? Reach Jacob at{" "}
+              <span className="font-bold text-xl text-[#d4a843]">(662) 882-1593</span>
+            </a>
+
             <div className="mt-10 space-y-4">
               {[
                 "Up to 61 CPM — minimum 2,500 miles/week",

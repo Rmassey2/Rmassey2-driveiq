@@ -94,6 +94,14 @@ export default function ApplyOwnerOpPage() {
               freight out of Memphis. Keep more, drive less, sleep at home.
             </p>
 
+            <a
+              href="tel:+16628821593"
+              className="mt-6 block text-lg text-gray-200 hover:text-white"
+            >
+              Prefer to call? Reach Jacob at{" "}
+              <span className="font-bold text-xl text-[#d4a843]">(662) 882-1593</span>
+            </a>
+
             <div className="mt-10 space-y-4">
               {[
                 "80% of gross revenue — keep more of what you haul",
