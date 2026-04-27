@@ -71,8 +71,8 @@ export default function ApplyOwnerOpPage() {
             </div>
             <span className="text-xl font-bold tracking-tight">MACO Transport</span>
           </div>
-          <a href="tel:+19013551234" className="text-sm text-[#d4a843] hover:underline hidden sm:block">
-            Questions? Call us
+          <a href="tel:+16628821593" className="text-sm text-[#d4a843] hover:underline hidden sm:block">
+            Questions? Call (662) 882-1593
           </a>
         </div>
       </header>
@@ -83,22 +83,25 @@ export default function ApplyOwnerOpPage() {
           {/* Left — copy */}
           <div>
             <h1 className="text-3xl md:text-4xl lg:text-5xl font-extrabold leading-tight">
-              Owner-Operators:{" "}
-              <span className="text-[#d4a843]">Keep more of what you earn</span>
+              <span className="text-[#d4a843]">Earn 80% of Gross.</span>
+              <br />
+              Home Weekends.
+              <br />
+              <span className="text-[#d4a843]">Memphis Based.</span>
             </h1>
             <p className="mt-6 text-lg text-gray-300 leading-relaxed">
-              Partner with MACO Transport out of Memphis, TN. Competitive pay, consistent freight,
-              and the support you need to run your business.
+              Maco Transport owner-operators run under our own authority hauling light, high-paying
+              freight out of Memphis. Keep more, drive less, sleep at home.
             </p>
 
             <div className="mt-10 space-y-4">
               {[
-                "Competitive per-mile rates with fuel surcharge",
-                "Consistent, high-paying freight lanes",
-                "No forced dispatch — choose your loads",
-                "Dedicated dispatcher support",
-                "Weekly settlements with direct deposit",
-                "Plate and insurance programs available",
+                "80% of gross revenue — keep more of what you haul",
+                "Home weekends — light loads, no forced dispatch",
+                "Fuel card provided",
+                "Run under our authority — no MC needed",
+                "Weekly settlements, direct deposit",
+                "High-paying freight, consistent lanes",
               ].map((item) => (
                 <div key={item} className="flex items-start gap-3">
                   <svg className="mt-1 h-5 w-5 flex-shrink-0 text-[#d4a843]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>

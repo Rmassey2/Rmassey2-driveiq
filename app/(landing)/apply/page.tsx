@@ -79,8 +79,8 @@ export default function ApplyPage() {
             </div>
             <span className="text-xl font-bold tracking-tight">MACO Transport</span>
           </div>
-          <a href="tel:+19013551234" className="text-sm text-[#d4a843] hover:underline hidden sm:block">
-            Questions? Call us
+          <a href="tel:+16628821593" className="text-sm text-[#d4a843] hover:underline hidden sm:block">
+            Questions? Call (662) 882-1593
           </a>
         </div>
       </header>
