@@ -14,10 +14,17 @@ export default function ApplyOwnerOpPage() {
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState("");
+  const [smsConsent, setSmsConsent] = useState(false);
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     console.log("[Apply-OO] handleSubmit fired");
+
+    if (!smsConsent) {
+      setError("Please agree to receive SMS messages to continue.");
+      return;
+    }
+
     setSubmitting(true);
     setError("");
 
@@ -31,6 +38,7 @@ export default function ApplyOwnerOpPage() {
         "do-you-have-a-valid-cdl": fd.get("cdl") as string,
         "years-of-experience": fd.get("experience") as string,
         "what-type-of-driver-are-you-interested-in-being": "Owner-Op",
+        sms_consent: true,
         utm_source: "driveiq_landing",
         utm_medium: "direct",
         utm_campaign: "owner_operator_apply",
@@ -165,19 +173,27 @@ export default function ApplyOwnerOpPage() {
                   ))}
                 </select>
 
+                <label className="flex items-start gap-3 cursor-pointer rounded-lg border border-white/20 bg-white/5 p-3 hover:bg-white/10 transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={smsConsent}
+                    onChange={(e) => setSmsConsent(e.target.checked)}
+                    className="mt-0.5 h-4 w-4 flex-shrink-0 rounded border-white/30 bg-white/10 accent-[#d4a843] cursor-pointer"
+                  />
+                  <span className="text-xs text-gray-300 leading-relaxed">
+                    <span className="text-[#d4a843]">*</span> I agree to receive SMS messages from Maco Transport about my application and job opportunities. Message and data rates may apply. Reply STOP to opt out, HELP for help.
+                  </span>
+                </label>
+
                 {error && <p className="text-red-400 text-sm">{error}</p>}
 
                 <button
                   type="submit"
-                  disabled={submitting}
-                  className="w-full rounded-lg bg-[#d4a843] py-3.5 font-bold text-[#0a1628] hover:bg-[#c49a35] transition-colors disabled:opacity-50"
+                  disabled={submitting || !smsConsent}
+                  className="w-full rounded-lg bg-[#d4a843] py-3.5 font-bold text-[#0a1628] hover:bg-[#c49a35] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {submitting ? "Submitting..." : "Apply Now"}
                 </button>
-
-                <p className="text-xs text-gray-500 text-center">
-                  By submitting, you agree to receive SMS messages from Maco Transport. Reply STOP to opt out.
-                </p>
               </form>
             )}
           </div>
