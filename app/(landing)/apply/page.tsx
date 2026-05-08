@@ -199,6 +199,28 @@ export default function ApplyPage() {
                   </span>
                 </label>
 
+                <p className="text-xs text-gray-400 leading-relaxed">
+                  View our{" "}
+                  <a
+                    href="/privacy"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[#d4a843] hover:underline"
+                  >
+                    Privacy Policy
+                  </a>{" "}
+                  and{" "}
+                  <a
+                    href="/terms"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[#d4a843] hover:underline"
+                  >
+                    Terms
+                  </a>{" "}
+                  for SMS program details.
+                </p>
+
                 {error && <p className="text-red-400 text-sm">{error}</p>}
 
                 <button
