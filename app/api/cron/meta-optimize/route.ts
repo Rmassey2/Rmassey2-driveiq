@@ -45,6 +45,7 @@ interface MetaSnapshot {
 interface Recommendation {
   action_type:
     | "pause_adset"
+    | "pause_campaign"
     | "shift_budget"
     | "refresh_creative"
     | "fix_landing_page"
@@ -57,6 +58,9 @@ interface Recommendation {
   adset_id?: string;
   utm_content?: string;
   rationale?: string;
+  // For shift_budget — what new daily budget (in whole dollars) Claude is
+  // proposing. The Approve & Execute flow reads this directly.
+  proposed_daily_budget_dollars?: number;
 }
 
 export async function GET(req: NextRequest) {
@@ -105,6 +109,7 @@ export async function GET(req: NextRequest) {
         adset_id: rec.adset_id ?? null,
         utm_content: rec.utm_content ?? null,
         rationale: rec.rationale ?? null,
+        proposed_daily_budget_dollars: rec.proposed_daily_budget_dollars ?? null,
       } as Record<string, unknown>,
     });
     if (!error) inserted++;
@@ -316,7 +321,9 @@ Constraints:
 ${JSON.stringify(payload, null, 2)}
 
 Return JSON:
-{"recommendations":[{"action_type":"pause_adset|shift_budget|refresh_creative|fix_landing_page|expand_targeting|other","priority":"high|medium|low","title":"short title under 80 chars","description":"2-3 sentence specific action including numbers","campaign_id":"if applicable","adset_id":"if applicable","utm_content":"if applicable","rationale":"why"}]}`;
+{"recommendations":[{"action_type":"pause_adset|pause_campaign|shift_budget|refresh_creative|fix_landing_page|expand_targeting|other","priority":"high|medium|low","title":"short title under 80 chars","description":"2-3 sentence specific action including numbers","campaign_id":"if applicable","adset_id":"if applicable","utm_content":"if applicable","rationale":"why","proposed_daily_budget_dollars":"required NUMBER for shift_budget, e.g. 25 — whole dollars, omit otherwise"}]}
+
+For pause_adset and pause_campaign, ALWAYS include the campaign_id and (when known) adset_id so the admin can one-click apply. For shift_budget, ALWAYS include proposed_daily_budget_dollars as a number.`;
 
   try {
     const res = await fetch("https://api.anthropic.com/v1/messages", {

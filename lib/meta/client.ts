@@ -191,3 +191,33 @@ export async function updateAdSetTargeting(
 ) {
   return graph<{ success: boolean }>("POST", adSetId, { targeting });
 }
+
+export async function pauseAdSet(adSetId: string) {
+  return graph<{ success: boolean }>("POST", adSetId, { status: "PAUSED" });
+}
+
+export async function pauseCampaign(campaignId: string) {
+  return graph<{ success: boolean }>("POST", campaignId, { status: "PAUSED" });
+}
+
+export async function listCampaignAdSets(campaignId: string): Promise<MetaAdSet[]> {
+  return listAdSets(campaignId);
+}
+
+// Meta expects daily_budget in the ad-account currency's smallest unit
+// (cents for USD). Caller passes whole dollars; helper converts.
+export async function updateAdSetDailyBudgetDollars(
+  adSetId: string,
+  dailyBudgetDollars: number
+) {
+  const daily_budget = Math.round(dailyBudgetDollars * 100);
+  return graph<{ success: boolean }>("POST", adSetId, { daily_budget });
+}
+
+export async function updateCampaignDailyBudgetDollars(
+  campaignId: string,
+  dailyBudgetDollars: number
+) {
+  const daily_budget = Math.round(dailyBudgetDollars * 100);
+  return graph<{ success: boolean }>("POST", campaignId, { daily_budget });
+}
