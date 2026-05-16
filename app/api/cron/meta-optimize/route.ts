@@ -350,9 +350,14 @@ For pause_adset and pause_campaign, ALWAYS include the campaign_id and (when kno
     if (!Array.isArray(parsed.recommendations) || parsed.recommendations.length === 0) {
       return fallbackRecommendations(dataset);
     }
-    return parsed.recommendations.filter(
+    const valid = parsed.recommendations.filter(
       (r) => r && r.title && r.description && r.priority && r.action_type
     );
+    // If Claude returned items but none pass our schema check, treat that as
+    // "Claude couldn't say anything useful" and use the deterministic
+    // fallback so the inbox is never silent.
+    if (valid.length === 0) return fallbackRecommendations(dataset);
+    return valid;
   } catch (e) {
     console.warn("[meta-optimize] Claude parse failed:", e);
     return fallbackRecommendations(dataset);
