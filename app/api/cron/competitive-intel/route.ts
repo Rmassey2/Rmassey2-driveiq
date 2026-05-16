@@ -82,14 +82,21 @@ If nothing significant, return: {"status":"NO_SIGNIFICANT_INTEL","findings":[]}`
 
       if (!error) {
         // Create inbox item for admin review
-        await supabase.from("cmo_inbox_items").insert({
+        const { error: inboxErr } = await supabase.from("cmo_inbox_items").insert({
           org_id: org.id,
           item_type: "competitive_intel",
           title: `${finding.competitor}: ${finding.intel_type.replace(/_/g, " ")}`,
-          description: finding.description,
+          action_description: finding.description,
+          reasoning: `Scan flagged this as ${finding.significance} significance via competitor monitoring.`,
           priority: finding.significance === "high" ? "high" : "medium",
           status: "pending",
+          data_points: {
+            competitor: finding.competitor,
+            intel_type: finding.intel_type,
+            significance: finding.significance,
+          },
         });
+        if (inboxErr) console.warn("[competitive-intel] inbox insert failed:", inboxErr.message);
         saved++;
       }
     }

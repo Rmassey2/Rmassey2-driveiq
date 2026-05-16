@@ -55,11 +55,11 @@ export async function POST(
     );
   }
 
-  const meta = (item.meta as Record<string, unknown> | null) ?? {};
-  const action_type = String(meta.action_type ?? "other");
-  const campaign_id = typeof meta.campaign_id === "string" ? meta.campaign_id : null;
-  const adset_id = typeof meta.adset_id === "string" ? meta.adset_id : null;
-  const budgetRaw = meta.proposed_daily_budget_dollars;
+  const dataPoints = (item.data_points as Record<string, unknown> | null) ?? {};
+  const action_type = String(dataPoints.action_type ?? "other");
+  const campaign_id = typeof dataPoints.campaign_id === "string" ? dataPoints.campaign_id : null;
+  const adset_id = typeof dataPoints.adset_id === "string" ? dataPoints.adset_id : null;
+  const budgetRaw = dataPoints.proposed_daily_budget_dollars;
   const proposed_daily_budget_dollars =
     typeof budgetRaw === "number" && Number.isFinite(budgetRaw) ? budgetRaw : null;
 
@@ -153,7 +153,7 @@ export async function POST(
       campaign_id,
       adset_id,
       action: `inbox_execute_${action_type}`,
-      payload: { meta },
+      payload: { data_points: dataPoints },
       success: false,
       error: msg,
       actor_user_id: user.id,
@@ -166,7 +166,7 @@ export async function POST(
     campaign_id,
     adset_id,
     action: `inbox_execute_${action_type}`,
-    payload: { meta },
+    payload: { data_points: dataPoints },
     result: { detail: result.detail, meta_result: result.meta_result } as Record<string, unknown>,
     success: true,
     actor_user_id: user.id,
@@ -185,13 +185,14 @@ export async function POST(
     .from("cmo_inbox_items")
     .update({
       status: "approved",
-      meta: {
-        ...meta,
+      approved_by: user.id,
+      approved_at: new Date().toISOString(),
+      data_points: {
+        ...dataPoints,
         executed_at: new Date().toISOString(),
         executed_by: user.id,
         execution_detail: result.detail,
       } as Record<string, unknown>,
-      updated_at: new Date().toISOString(),
     })
     .eq("id", item.id);
 
@@ -208,8 +209,8 @@ async function markApprovedManual(
     .from("cmo_inbox_items")
     .update({
       status: "approved",
-      meta: { manual_action_required: true, action_type, note } as Record<string, unknown>,
-      updated_at: new Date().toISOString(),
+      approved_at: new Date().toISOString(),
+      data_points: { manual_action_required: true, action_type, note } as Record<string, unknown>,
     })
     .eq("id", itemId);
 }

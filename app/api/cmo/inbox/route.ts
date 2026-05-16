@@ -47,22 +47,38 @@ export async function POST(req: NextRequest) {
   if (!org)
     return NextResponse.json({ error: "Org not found" }, { status: 500 });
 
+  // Accept both new and legacy field names from callers.
+  const action_description =
+    (body.action_description as string | undefined) ??
+    (body.description as string | undefined) ??
+    title;
+  const reasoning =
+    (body.reasoning as string | undefined) ?? action_description;
+  const data_points =
+    (body.data_points as Record<string, unknown> | undefined) ??
+    (body.meta as Record<string, unknown> | undefined) ??
+    null;
+
   const { data, error } = await supabase
     .from("cmo_inbox_items")
     .insert({
       org_id: org.id,
       item_type,
       title,
-      description: (body.description as string) ?? null,
+      action_description,
+      reasoning,
       priority: (body.priority as string) ?? "medium",
       status: "pending",
-      source_action_id: (body.source_action_id as string) ?? null,
-      meta: (body.meta as Record<string, unknown>) ?? null,
+      data_points,
     })
     .select("*")
     .single();
 
-  if (error)
-    return NextResponse.json({ error: "Insert failed" }, { status: 500 });
+  if (error) {
+    return NextResponse.json(
+      { error: error.message ?? "Insert failed" },
+      { status: 500 }
+    );
+  }
   return NextResponse.json(data, { status: 201 });
 }

@@ -6,10 +6,11 @@ interface InboxItem {
   id: string;
   item_type: string;
   title: string;
-  description: string | null;
+  action_description: string | null;
+  reasoning: string | null;
   priority: string;
   status: string;
-  meta: Record<string, unknown> | null;
+  data_points: Record<string, unknown> | null;
   created_at: string;
 }
 
@@ -121,19 +122,19 @@ export default function CmoInboxPage() {
       ) : (
         <div className="space-y-4">
           {items.map((item) => {
-            const meta = item.meta ?? {};
+            const dp = item.data_points ?? {};
             const actionType =
-              typeof meta.action_type === "string" ? meta.action_type : null;
+              typeof dp.action_type === "string" ? dp.action_type : null;
             const proposedBudget =
-              typeof meta.proposed_daily_budget_dollars === "number"
-                ? meta.proposed_daily_budget_dollars
+              typeof dp.proposed_daily_budget_dollars === "number"
+                ? dp.proposed_daily_budget_dollars
                 : null;
             const campaignId =
-              typeof meta.campaign_id === "string" ? meta.campaign_id : null;
+              typeof dp.campaign_id === "string" ? dp.campaign_id : null;
             const adsetId =
-              typeof meta.adset_id === "string" ? meta.adset_id : null;
+              typeof dp.adset_id === "string" ? dp.adset_id : null;
             const utmContent =
-              typeof meta.utm_content === "string" ? meta.utm_content : null;
+              typeof dp.utm_content === "string" ? dp.utm_content : null;
             const isMetaOpt = item.item_type === "meta_optimization";
             const canExecute = isMetaOpt && actionType !== null && EXECUTABLE_ACTIONS.has(actionType);
             const fb = feedback[item.id];
@@ -169,9 +170,14 @@ export default function CmoInboxPage() {
                     <h3 className="mt-2 text-lg font-semibold text-white">
                       {item.title}
                     </h3>
-                    {item.description && (
+                    {item.action_description && (
                       <p className="mt-1 text-sm text-gray-300">
-                        {item.description}
+                        {item.action_description}
+                      </p>
+                    )}
+                    {item.reasoning && item.reasoning !== item.action_description && (
+                      <p className="mt-1 text-xs italic text-gray-400">
+                        {item.reasoning}
                       </p>
                     )}
                     {(campaignId || adsetId || utmContent || proposedBudget !== null) && (

@@ -100,10 +100,11 @@ export async function GET(req: NextRequest) {
       org_id: org.id,
       item_type: "meta_optimization",
       title: rec.title.slice(0, 240),
-      description: rec.description.slice(0, 2000),
+      action_description: rec.description.slice(0, 2000),
+      reasoning: (rec.rationale ?? rec.description ?? "Drafted by AI CMO optimizer").slice(0, 2000),
       priority: rec.priority,
       status: "pending",
-      meta: {
+      data_points: {
         action_type: rec.action_type,
         campaign_id: rec.campaign_id ?? null,
         adset_id: rec.adset_id ?? null,
@@ -112,6 +113,7 @@ export async function GET(req: NextRequest) {
         proposed_daily_budget_dollars: rec.proposed_daily_budget_dollars ?? null,
       } as Record<string, unknown>,
     });
+    if (error) console.warn("[meta-optimize] insert failed:", error.message);
     if (!error) inserted++;
   }
 
