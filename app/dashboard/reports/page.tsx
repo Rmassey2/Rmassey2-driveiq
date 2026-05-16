@@ -99,8 +99,14 @@ function ReportsContent() {
             </button>
           ))}
           <Link
-            href="/dashboard/reports/cmo-report"
+            href="/dashboard/reports/funnel"
             className="ml-4 rounded-lg bg-[#111d33] px-3 py-1.5 text-xs font-medium text-[#c8a951] hover:bg-[#c8a951]/10"
+          >
+            Funnel
+          </Link>
+          <Link
+            href="/dashboard/reports/cmo-report"
+            className="rounded-lg bg-[#111d33] px-3 py-1.5 text-xs font-medium text-[#c8a951] hover:bg-[#c8a951]/10"
           >
             CMO Reports
           </Link>

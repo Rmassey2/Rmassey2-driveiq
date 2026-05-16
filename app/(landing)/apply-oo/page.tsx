@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, FormEvent } from "react";
+import { useEffect, useRef, useState, FormEvent } from "react";
+import { captureUtmsFromUrl, getStoredUtms, trackEvent } from "@/lib/tracking";
 
 const EXP_OPTIONS = [
   { value: "", label: "Select experience" },
@@ -15,6 +16,18 @@ export default function ApplyOwnerOpPage() {
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState("");
   const [smsConsent, setSmsConsent] = useState(false);
+  const formStartedRef = useRef(false);
+
+  useEffect(() => {
+    captureUtmsFromUrl();
+    trackEvent("page_view");
+  }, []);
+
+  function handleFormStart() {
+    if (formStartedRef.current) return;
+    formStartedRef.current = true;
+    trackEvent("form_start");
+  }
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -22,6 +35,7 @@ export default function ApplyOwnerOpPage() {
 
     if (!smsConsent) {
       setError("Please agree to receive SMS messages to continue.");
+      trackEvent("form_error", { reason: "missing_sms_consent" });
       return;
     }
 
@@ -29,6 +43,7 @@ export default function ApplyOwnerOpPage() {
     setError("");
 
     const fd = new FormData(e.currentTarget);
+    const utms = getStoredUtms();
     const payload = {
       formData: {
         name: fd.get("name") as string,
@@ -39,9 +54,12 @@ export default function ApplyOwnerOpPage() {
         "years-of-experience": fd.get("experience") as string,
         "what-type-of-driver-are-you-interested-in-being": "Owner-Op",
         sms_consent: true,
-        utm_source: "driveiq_landing",
-        utm_medium: "direct",
-        utm_campaign: "owner_operator_apply",
+        utm_source: utms.utm_source ?? "driveiq_landing",
+        utm_medium: utms.utm_medium ?? "direct",
+        utm_campaign: utms.utm_campaign ?? "owner_operator_apply",
+        utm_content: utms.utm_content ?? undefined,
+        utm_term: utms.utm_term ?? undefined,
+        referrer: utms.referrer ?? undefined,
       },
     };
 
@@ -59,10 +77,12 @@ export default function ApplyOwnerOpPage() {
         throw new Error(data.error || `Server returned ${res.status}`);
       }
       setSubmitted(true);
+      trackEvent("form_submit", { lead_id: data.lead_id ?? null });
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Unknown error";
       console.error("[Apply-OO] Submit error:", msg);
       setError(`Something went wrong: ${msg}. Please try again or call us directly.`);
+      trackEvent("form_error", { reason: "submit_failed", message: msg });
     } finally {
       setSubmitting(false);
     }
@@ -142,7 +162,7 @@ export default function ApplyOwnerOpPage() {
                 <p className="mt-2 text-gray-300">We&apos;ll be in touch within 24 hours.</p>
               </div>
             ) : (
-              <form onSubmit={handleSubmit} className="space-y-5">
+              <form onSubmit={handleSubmit} onChange={handleFormStart} className="space-y-5">
                 <h2 className="text-xl font-bold text-center mb-2">Partner With Us</h2>
 
                 <input name="name" required placeholder="Full Name" className="w-full rounded-lg bg-white/10 border border-white/20 px-4 py-3 text-white placeholder-gray-400 focus:border-[#d4a843] focus:outline-none focus:ring-1 focus:ring-[#d4a843]" />
