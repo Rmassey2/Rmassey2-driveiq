@@ -113,6 +113,7 @@ active | considering | contact_later | do_not_hire | hired | withdrew | archived
 - **Session 4B** — Review request system (Day 30 Google, Day 45 Facebook, Claude-personalized SMS, autonomous action logging), source attribution dashboard (recharts bar chart, channel table, Facebook quality callout), monthly CMO report generator (Claude AI executive summary + 3 recommendations, HTML email to admin), competitive intel scanner (Claude AI every 48h, auto-creates inbox items), shared components (skeleton, empty-state, toast, error-boundary), dashboard home polish (priority leads, overdue check-ins, open flags, pending approvals, activity feed), sign out button, mobile responsive tables
 - **Session 5 (April 2026)** — Lead deletion flow (DELETE endpoint, confirmation modal in slide-over and detail page, autonomous_actions audit logging), Meta Ads API campaign optimizer, Vercel production deployment hardening, manual Twilio 901 test SMS button in the slide-over Drip Status tab (POST /api/leads/test-sms, audit logged as sms_test)
 - **Session 6 (May 2026)** — Closed the AI CMO autonomy loop. Fixed `/apply` and `/apply-oo` hardcoded UTMs to read from URL search params (paid traffic was being stamped "direct"). New `landing_page_events` table + `v_landing_funnel` view + `/api/track` endpoint emitting `page_view`/`form_start`/`form_submit`/`form_error` on apply pages. New `/api/cron/meta-optimize` (daily 11:00 UTC) that joins Meta insights + funnel + leads-by-UTM and asks Claude for prioritized recommendations (degrades to deterministic fallback when META_ACCESS_TOKEN missing). New `/dashboard/reports/funnel` dashboard. New `/api/cmo/inbox/[id]/execute` endpoint + "Approve & Execute" button — admin one-click applies pause_adset / pause_campaign / shift_budget directly via Meta Graph API; non-executable types (refresh_creative, fix_landing_page) marked approved with manual_action_required. Also **fixed silent cross-codebase bug**: `cmo_inbox_items` schema uses `action_description` + `reasoning` (NOT NULL) + `data_points` (jsonb), not `description` / `meta`; every inbox insert from competitive-intel had been failing.
+- **Session 7 (2026-05-16)** — Meta access live end-to-end. Applied `20260516_landing_page_events.sql` and `20260416_meta_campaign_optimizer.sql` migrations in production Supabase (the latter had silently never been applied — explains why prior optimizer attempts couldn't persist snapshots). Generated 60-day User Access Token via Graph API Explorer + Access Token Debugger tied to William Massey's FB account (System User route was blocked because live ad account `act_2259508744311442` lives in "Other assets" portfolio, not owned by any Business Manager). Added `META_ACCESS_TOKEN` and `META_GRAPH_API_VERSION=v19.0` to Vercel Production+Preview. Redeployed. Verified optimizer cron returns `has_meta_token:true`, snapshots 2 live campaigns, drafts 3 specific recommendations from real spend data. First 14-day snapshot: Company Drivers Apr2026 ($408.62 / 199K imps / 0.75% CTR), Owner Operators Apr2026 ($419.08 / 104K imps / 1.62% CTR), combined 3,177 clicks → 1 form lead. Token expires 2026-07-15 (see memory `meta-user-access-token`).
 
 ### Known Limitations / Future Work
 - **Tenstreet API** — CSV import only currently; direct API integration planned for Phase 2
@@ -226,8 +227,9 @@ All paid traffic to `/apply` and `/apply-oo` should carry `utm_source`, `utm_med
 - Tenstreet API — waiting on rep response
 - UTM tags on Owner Operators Facebook campaign — not yet applied
 - Privacy policy page needed for long-term Twilio compliance
-- Page-visit analytics dashboard — funnel events landed in Session 6 (landing_page_events + v_landing_funnel + /dashboard/reports/funnel); awaiting Supabase migration in 20260516_landing_page_events.sql before /api/track works
-- **Meta access for live ad management** — System User token + ads_management Standard Access pending. App exists (META_APP_ID=2411227719300403), ad account known (act_2259508744311442), billing configured. Steps queued: Business Verification at business.facebook.com/settings/security, request ads_management at developers.facebook.com → app → App Review, create System User and generate non-expiring token, drop in Vercel as META_ACCESS_TOKEN. Until then, /api/cron/meta-optimize runs in fallback mode and the Approve & Execute button returns 400 on every meta_optimization item
+- ~~Page-visit analytics dashboard~~ ✅ Shipped Session 6 (landing_page_events, v_landing_funnel, /dashboard/reports/funnel) and migration applied Session 7
+- ~~Meta access for live ad management~~ ✅ Shipped Session 7 via 60-day User Access Token. **Refresh before 2026-07-15** — see memory `meta-user-access-token` for the procedure or build the self-refresh cron
+- **Phone call conversion tracking** — Maco's FB ads drive calls to Jacob's number (662-882-1593) in addition to form submits, but DriveIQ only counts form submits. AI CMO recommendations to pause/reduce campaigns over "zero conversions" can be misleading until call tracking exists. Simplest fix: put a Twilio-tracked number on the apply pages so calls log to `call_log` as conversions. See memory `phone-call-conversion-blind-spot`
 
 ### Known Issues / Limitations
 - driveformaco.com Webflow form not reliably sending to DriveIQ webhook (JS embed in place but Webflow Basic plan limitations)
@@ -276,14 +278,18 @@ DAT Freight & Analytics provides load board data, rate benchmarks, and lane anal
 ## Next Session Priorities
 1. Set `TWILIO_901_NUMBER=+19015828745` in Vercel env, then use the Drip Status tab "Send Test SMS via 901" button to canary provisioning
 2. Confirm Twilio A2P 10DLC + toll-free approval and test drip send end to end
-3. Create Owner Operators Traffic campaign in Facebook and point it to `/apply-oo`
+3. ~~Create Owner Operators Traffic campaign~~ ✅ Live and high-performing (1.62% CTR) — CLAUDE.md was stale; campaign already exists pointing at /apply-oo
 4. Disable / delete Company Drivers v1 (rejected-ad error)
 5. Update real hire dates for the 53 active drivers
 6. Fix getloaded.net Apply buttons when Webflow access is available
 7. (Optional) point driveformaco.com at DriveIQ `/apply` instead of the Webflow form
-8. Kick off DAT API integration — confirm account tier, request credentials, build `lib/dat.ts` and the `dat_rate_cache` table
+8. Kick off DAT API integration — out of scope, see memory `dat-api-scope`
 9. Privacy policy page for long-term Twilio compliance
-10. Decide on page-visit analytics approach (custom Supabase table vs Vercel Analytics)
-11. **Apply 20260516_landing_page_events.sql in Supabase SQL editor** (Session 6 funnel tracking) — blocks /api/track and /v_landing_funnel until run
-12. **Complete Meta access flow** — Business Verification → ads_management Standard Access → System User token → drop META_ACCESS_TOKEN in Vercel. Unlocks live ad pause/budget execution from the CMO inbox
-13. Add unique utm_content per Facebook ad creative on the live "Company Drivers - Traffic - Apr2026" campaign so the optimizer can attribute creative-level performance
+10. ~~Page-visit analytics~~ ✅ Done Session 6/7
+11. ~~Apply 20260516_landing_page_events.sql~~ ✅ Applied Session 7
+12. ~~Complete Meta access flow~~ ✅ Done Session 7 via User Access Token. Token expires 2026-07-15 — see memory `meta-user-access-token` for refresh
+13. **Ask Jacob about FB-driven phone call volume** before approving any pause_campaign/shift_budget recommendations from the CMO inbox — current "zero conversions" reading doesn't see phone calls (see memory `phone-call-conversion-blind-spot`)
+14. **Add call tracking on apply pages** — put a Twilio-tracked number on /apply and /apply-oo so phone conversions log to `call_log`. Unblocks reliable AI CMO recommendations
+15. Add unique utm_content per Facebook ad creative on live "Company Drivers - Traffic - Apr2026" and "Owner Operators - Traffic - Apr2026" so the optimizer can attribute creative-level performance (Meta uses ad IDs as utm_content by default — `120240927724910141` etc — which is fine but not human-readable)
+16. **Refresh META_ACCESS_TOKEN before 2026-07-15** — or build self-refresh cron (`/api/cron/meta-token-refresh`) using `fb_exchange_token` grant; needs META_APP_SECRET added to Vercel
+17. **Investigate the form-conversion gap** — 14-day data shows 3,177 FB clicks → 1 form submit. Form works in manual testing. Likely culprits: drivers prefer calling (see #13), mobile-vs-desktop discrepancy, low-intent FB audience, or ad creative attracting clicks but not qualified leads
