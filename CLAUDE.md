@@ -112,6 +112,7 @@ active | considering | contact_later | do_not_hire | hired | withdrew | archived
 - **Session 4A** — AI CMO dashboard, CMO approval inbox with Approve/Edit/Dismiss, AI Ad Studio (Claude API ad generation, Facebook preview, campaign table), Content Calendar (weekly view, Generate Week, post management)
 - **Session 4B** — Review request system (Day 30 Google, Day 45 Facebook, Claude-personalized SMS, autonomous action logging), source attribution dashboard (recharts bar chart, channel table, Facebook quality callout), monthly CMO report generator (Claude AI executive summary + 3 recommendations, HTML email to admin), competitive intel scanner (Claude AI every 48h, auto-creates inbox items), shared components (skeleton, empty-state, toast, error-boundary), dashboard home polish (priority leads, overdue check-ins, open flags, pending approvals, activity feed), sign out button, mobile responsive tables
 - **Session 5 (April 2026)** — Lead deletion flow (DELETE endpoint, confirmation modal in slide-over and detail page, autonomous_actions audit logging), Meta Ads API campaign optimizer, Vercel production deployment hardening, manual Twilio 901 test SMS button in the slide-over Drip Status tab (POST /api/leads/test-sms, audit logged as sms_test)
+- **Session 6 (May 2026)** — Closed the AI CMO autonomy loop. Fixed `/apply` and `/apply-oo` hardcoded UTMs to read from URL search params (paid traffic was being stamped "direct"). New `landing_page_events` table + `v_landing_funnel` view + `/api/track` endpoint emitting `page_view`/`form_start`/`form_submit`/`form_error` on apply pages. New `/api/cron/meta-optimize` (daily 11:00 UTC) that joins Meta insights + funnel + leads-by-UTM and asks Claude for prioritized recommendations (degrades to deterministic fallback when META_ACCESS_TOKEN missing). New `/dashboard/reports/funnel` dashboard. New `/api/cmo/inbox/[id]/execute` endpoint + "Approve & Execute" button — admin one-click applies pause_adset / pause_campaign / shift_budget directly via Meta Graph API; non-executable types (refresh_creative, fix_landing_page) marked approved with manual_action_required. Also **fixed silent cross-codebase bug**: `cmo_inbox_items` schema uses `action_description` + `reasoning` (NOT NULL) + `data_points` (jsonb), not `description` / `meta`; every inbox insert from competitive-intel had been failing.
 
 ### Known Limitations / Future Work
 - **Tenstreet API** — CSV import only currently; direct API integration planned for Phase 2
@@ -225,7 +226,8 @@ All paid traffic to `/apply` and `/apply-oo` should carry `utm_source`, `utm_med
 - Tenstreet API — waiting on rep response
 - UTM tags on Owner Operators Facebook campaign — not yet applied
 - Privacy policy page needed for long-term Twilio compliance
-- Page-visit analytics dashboard — source attribution exists, raw page views do not
+- Page-visit analytics dashboard — funnel events landed in Session 6 (landing_page_events + v_landing_funnel + /dashboard/reports/funnel); awaiting Supabase migration in 20260516_landing_page_events.sql before /api/track works
+- **Meta access for live ad management** — System User token + ads_management Standard Access pending. App exists (META_APP_ID=2411227719300403), ad account known (act_2259508744311442), billing configured. Steps queued: Business Verification at business.facebook.com/settings/security, request ads_management at developers.facebook.com → app → App Review, create System User and generate non-expiring token, drop in Vercel as META_ACCESS_TOKEN. Until then, /api/cron/meta-optimize runs in fallback mode and the Approve & Execute button returns 400 on every meta_optimization item
 
 ### Known Issues / Limitations
 - driveformaco.com Webflow form not reliably sending to DriveIQ webhook (JS embed in place but Webflow Basic plan limitations)
@@ -282,3 +284,6 @@ DAT Freight & Analytics provides load board data, rate benchmarks, and lane anal
 8. Kick off DAT API integration — confirm account tier, request credentials, build `lib/dat.ts` and the `dat_rate_cache` table
 9. Privacy policy page for long-term Twilio compliance
 10. Decide on page-visit analytics approach (custom Supabase table vs Vercel Analytics)
+11. **Apply 20260516_landing_page_events.sql in Supabase SQL editor** (Session 6 funnel tracking) — blocks /api/track and /v_landing_funnel until run
+12. **Complete Meta access flow** — Business Verification → ads_management Standard Access → System User token → drop META_ACCESS_TOKEN in Vercel. Unlocks live ad pause/budget execution from the CMO inbox
+13. Add unique utm_content per Facebook ad creative on the live "Company Drivers - Traffic - Apr2026" campaign so the optimizer can attribute creative-level performance
