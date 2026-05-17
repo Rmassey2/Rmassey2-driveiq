@@ -114,6 +114,7 @@ active | considering | contact_later | do_not_hire | hired | withdrew | archived
 - **Session 5 (April 2026)** — Lead deletion flow (DELETE endpoint, confirmation modal in slide-over and detail page, autonomous_actions audit logging), Meta Ads API campaign optimizer, Vercel production deployment hardening, manual Twilio 901 test SMS button in the slide-over Drip Status tab (POST /api/leads/test-sms, audit logged as sms_test)
 - **Session 6 (May 2026)** — Closed the AI CMO autonomy loop. Fixed `/apply` and `/apply-oo` hardcoded UTMs to read from URL search params (paid traffic was being stamped "direct"). New `landing_page_events` table + `v_landing_funnel` view + `/api/track` endpoint emitting `page_view`/`form_start`/`form_submit`/`form_error` on apply pages. New `/api/cron/meta-optimize` (daily 11:00 UTC) that joins Meta insights + funnel + leads-by-UTM and asks Claude for prioritized recommendations (degrades to deterministic fallback when META_ACCESS_TOKEN missing). New `/dashboard/reports/funnel` dashboard. New `/api/cmo/inbox/[id]/execute` endpoint + "Approve & Execute" button — admin one-click applies pause_adset / pause_campaign / shift_budget directly via Meta Graph API; non-executable types (refresh_creative, fix_landing_page) marked approved with manual_action_required. Also **fixed silent cross-codebase bug**: `cmo_inbox_items` schema uses `action_description` + `reasoning` (NOT NULL) + `data_points` (jsonb), not `description` / `meta`; every inbox insert from competitive-intel had been failing.
 - **Session 7 (2026-05-16)** — Meta access live end-to-end. Applied `20260516_landing_page_events.sql` and `20260416_meta_campaign_optimizer.sql` migrations in production Supabase (the latter had silently never been applied — explains why prior optimizer attempts couldn't persist snapshots). Generated 60-day User Access Token via Graph API Explorer + Access Token Debugger tied to William Massey's FB account (System User route was blocked because live ad account `act_2259508744311442` lives in "Other assets" portfolio, not owned by any Business Manager). Added `META_ACCESS_TOKEN` and `META_GRAPH_API_VERSION=v19.0` to Vercel Production+Preview. Redeployed. Verified optimizer cron returns `has_meta_token:true`, snapshots 2 live campaigns, drafts 3 specific recommendations from real spend data. First 14-day snapshot: Company Drivers Apr2026 ($408.62 / 199K imps / 0.75% CTR), Owner Operators Apr2026 ($419.08 / 104K imps / 1.62% CTR), combined 3,177 clicks → 1 form lead. Token expires 2026-07-15 (see memory `meta-user-access-token`).
+- **Session 8 (2026-05-17)** — Twilio SMS unblocking session. Started with the 901 test-SMS button failing through a cascade of errors that turned out to be three separate bugs. (1) `lib/twilio.ts` test endpoint was sending raw `From: +19015828745`, which Twilio rejects (error 21606) because the number is in the "Low Volume Mixed A2P Messaging Service" pool — fixed test-sms route to prefer `TWILIO_MESSAGING_SERVICE_SID` when set (commit `f4832cb`). (2) Twilio then returned 404 on the account URL — discovered `TWILIO_ACCOUNT_SID` in Vercel had been wrong since the original Mar 25 setup (was `AC9f78…cdf0`, should be `AC3f38…c1d4`); fixed `TWILIO_ACCOUNT_SID` + `TWILIO_AUTH_TOKEN` env vars to point at the real MACO Transportation account. SMS then sent successfully (Twilio API accepted, returned SM SID) but carrier returned **30034 — Message from an Unregistered Number**. Traced to A2P 10DLC campaign showing **Rejected** in Twilio compliance dashboard because the original opt-in flow made SMS consent a required precondition for submitting the driver application — violates CTIA rule 5.1.1. (3) Fixed `/apply` and `/apply-oo`: removed `if (!smsConsent) return` guard, removed `disabled={!smsConsent}` from submit button, now sends real `smsConsent` boolean to webhook (relabeled checkbox "(Optional)"). Webhook `/api/webhooks/webflow-lead/route.ts` now reads `sms_consent` and skips the welcome SMS + drip enrollment when explicitly false (defaults to true when absent for backwards-compat with legacy Webflow submissions). Commit `f647f43`. Resubmitted A2P 10DLC campaign in Twilio with `https://apply.driveformaco.com/privacy` + `/terms` and rewritten opt-in description — campaign now showing **Under Review** in TCR. Toll-free +18664025201 verification still **Rejected** (deferred — 901 number is sufficient). Also added Vercel env vars `TWILIO_MESSAGING_SERVICE_SID` (Low Volume Mixed A2P Messaging Service SID) and `TWILIO_901_NUMBER=+19015828745`.
 
 ### Known Limitations / Future Work
 - **Tenstreet API** — CSV import only currently; direct API integration planned for Phase 2
@@ -202,12 +203,14 @@ All paid traffic to `/apply` and `/apply-oo` should carry `utm_source`, `utm_med
 - Vercel auto-deploys on push to main; deployment protection disabled (public access)
 - Billing configured in Meta Ads
 
-### Twilio Status (SMS not yet sending)
-- Toll-free +18664025201: Verification submitted — pending approval (1-5 days from early April)
-- Local 901 +19015828745: A2P 10DLC campaign submitted — pending approval (2-3 weeks from early April)
-- Business Profile approved by Twilio Trust Hub (Bundle SID: BUa346d24bc3b93fe44c16941b13fc17b3)
-- SMS will fire automatically when either number is approved — no code changes required
-- First drip message includes Tenstreet apply link
+### Twilio Status (SMS provisioning, end of Session 8)
+- Toll-free +18664025201: **Verification REJECTED** by Twilio Trust Hub — deferred indefinitely; 901 number is sufficient for current volume
+- Local 901 +19015828745: number is live, attached to **Low Volume Mixed A2P Messaging Service** (SID in `TWILIO_MESSAGING_SERVICE_SID`)
+- A2P 10DLC: **Brand Registered ✅**, **Campaign Under Review** (resubmitted Session 8 after the original was rejected for making SMS consent mandatory)
+- Account SID + Auth Token in Vercel are now correct (`AC3f38…c1d4`) — were wrong from initial setup until Session 8
+- API integration verified end-to-end: test-SMS button returns success with SM SID, message reaches Twilio. Carrier delivery blocked until TCR approves the campaign — once approved, drips fire automatically on the hourly cron
+- Code path: `lib/twilio.ts` prefers `TWILIO_MESSAGING_SERVICE_SID` over raw From; the test-sms route (`/api/leads/test-sms`) also prefers the messaging service. Numbers in a messaging service pool cannot be used as raw From (Twilio 21606)
+- Business Profile approved (Bundle SID: BUa346d24bc3b93fe44c16941b13fc17b3)
 
 ### Twilio 901 Test SMS (manual verification)
 - Drip Status tab on the lead slide-over has a "Send Test SMS via 901" button backed by POST /api/leads/test-sms
@@ -217,8 +220,8 @@ All paid traffic to `/apply` and `/apply-oo` should carry `utm_source`, `utm_med
 - If A2P 10DLC is still pending, Twilio error 30034 ("campaign not registered") surfaces in the UI — that is the canary for provisioning completion
 
 ### Pending / In Progress
-- Twilio toll-free verification (check twilio.com > Phone Numbers > 866 number > Regulatory Information)
-- Twilio A2P campaign (check twilio.com > Messaging > Regulatory Compliance > A2P Messaging)
+- ~~Twilio toll-free verification~~ REJECTED — deferred; 901 number covers current needs
+- Twilio A2P 10DLC Campaign — **Under Review** as of 2026-05-17 (resubmitted Session 8); typical TCR approval window 1–7 days. Watch for Twilio email confirming Verified status.
 - Owner Operators Facebook Traffic campaign (duplicate Company Drivers campaign, point to `/apply-oo`)
 - getloaded.net Apply Now buttons still broken (need Webflow access to fix)
 - Active driver hire dates all show 3/25/2026 — need real hire dates
@@ -238,8 +241,8 @@ All paid traffic to `/apply` and `/apply-oo` should carry `utm_source`, `utm_med
 - Test Driver record in hired_drivers needs to be deleted
 
 ### Current Issues (blocking or recently surfaced)
-- **Twilio SMS not yet sending end-to-end** — both numbers pending; 901 test button available to canary provisioning
-- **`TWILIO_901_NUMBER` env var not yet set in Vercel** — test endpoint falls back to `TWILIO_FROM_NUMBER`; set to `+19015828745` in Production + Preview
+- **Twilio SMS still blocked carrier-side** — A2P 10DLC campaign Under Review at TCR after Session 8 resubmission; expect 1–7 days. Once Verified, drips fire automatically on the hourly cron — no further code changes needed.
+- ~~`TWILIO_901_NUMBER` env var not yet set in Vercel~~ ✅ Set Session 8 to `+19015828745`. Also added `TWILIO_MESSAGING_SERVICE_SID` (Low Volume Mixed A2P Messaging Service)
 - **getloaded.net Apply Now buttons broken** — need Webflow editor access to fix; meanwhile owner-op traffic routes via Facebook → `/apply-oo`
 - **Webflow → DriveIQ webhook flaky** — JS embed on driveformaco.com occasionally drops submits; consider pointing the domain at `/apply` directly to remove Webflow from the path
 - **Hire-date hygiene** — 53 active driver records share hire_date 2026-03-25; retention risk scoring and tenure alerts are skewed until these are backfilled
@@ -276,8 +279,8 @@ DAT Freight & Analytics provides load board data, rate benchmarks, and lane anal
 ---
 
 ## Next Session Priorities
-1. Set `TWILIO_901_NUMBER=+19015828745` in Vercel env, then use the Drip Status tab "Send Test SMS via 901" button to canary provisioning
-2. Confirm Twilio A2P 10DLC + toll-free approval and test drip send end to end
+1. ~~Set `TWILIO_901_NUMBER` in Vercel~~ ✅ Done Session 8
+2. **Watch for TCR approval email** on the A2P 10DLC campaign resubmission (submitted 2026-05-17, typical 1–7 day window). Once Verified, send a real test SMS via the 901 button to your own phone — Twilio should now return `delivered`. Drips to enrolled leads start automatically on the next hourly cron.
 3. ~~Create Owner Operators Traffic campaign~~ ✅ Live and high-performing (1.62% CTR) — CLAUDE.md was stale; campaign already exists pointing at /apply-oo
 4. Disable / delete Company Drivers v1 (rejected-ad error)
 5. Update real hire dates for the 53 active drivers
