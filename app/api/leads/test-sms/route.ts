@@ -19,10 +19,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
+  const messagingService = process.env.TWILIO_MESSAGING_SERVICE_SID;
   const from = process.env.TWILIO_901_NUMBER ?? process.env.TWILIO_FROM_NUMBER;
-  if (!from) {
+  if (!messagingService && !from) {
     return NextResponse.json(
-      { error: "TWILIO_901_NUMBER and TWILIO_FROM_NUMBER are both unset" },
+      {
+        error:
+          "No Twilio sender configured (TWILIO_MESSAGING_SERVICE_SID, TWILIO_901_NUMBER, or TWILIO_FROM_NUMBER required)",
+      },
       { status: 500 }
     );
   }
@@ -54,7 +58,14 @@ export async function POST(req: NextRequest) {
     body.message?.trim() ||
     `DriveIQ test from Maco Transport via 901 line. If you got this, Twilio is working. Reply STOP to opt out.`;
 
-  const result = await sendSMS(destination, message, from);
+  // Numbers assigned to a Messaging Service cannot be used as a raw From (Twilio
+  // error 21606). The 901 number is in the A2P Messaging Service pool, so prefer
+  // the service when set and fall back to the raw From only if it isn't.
+  const result = messagingService
+    ? await sendSMS(destination, message)
+    : await sendSMS(destination, message, from);
+
+  const sentVia = messagingService ? `messaging_service ${messagingService}` : `from ${from}`;
 
   if (orgId) {
     await supabase.from("autonomous_actions").insert({
@@ -62,8 +73,8 @@ export async function POST(req: NextRequest) {
       action_type: "sms_test",
       description: `Test SMS via 901 to ${destination}${leadName ? ` (${leadName})` : ""}`,
       reasoning: result.success
-        ? `Twilio SID ${result.sid ?? "unknown"}`
-        : `Failed: ${result.error ?? "unknown error"}`,
+        ? `Twilio SID ${result.sid ?? "unknown"} (${sentVia})`
+        : `Failed: ${result.error ?? "unknown error"} (${sentVia})`,
       affected_record_id: body.lead_id ?? null,
       affected_table: "driver_leads",
     });
@@ -71,10 +82,10 @@ export async function POST(req: NextRequest) {
 
   if (!result.success) {
     return NextResponse.json(
-      { success: false, from, to: destination, error: result.error },
+      { success: false, sentVia, to: destination, error: result.error },
       { status: 502 }
     );
   }
 
-  return NextResponse.json({ success: true, from, to: destination, sid: result.sid });
+  return NextResponse.json({ success: true, sentVia, to: destination, sid: result.sid });
 }
