@@ -111,6 +111,14 @@ export async function POST(req: NextRequest) {
   const utmContent = data.utm_content ?? null;
   const tenstreetId = data.tenstreet_applicant_id ?? null;
 
+  // SMS consent — TCR/CTIA require this to be optional, not a precondition for
+  // applying. /apply and /apply-oo send a real boolean; legacy Webflow submissions
+  // omit the field, so we default to true to preserve existing behavior there.
+  // When the value IS sent and is explicitly false, skip the welcome SMS and drip.
+  const rawConsent = (data as Record<string, unknown>).sms_consent;
+  const smsConsent = rawConsent === undefined ? true : rawConsent === true || rawConsent === "true";
+  console.log("[Webflow Webhook] sms_consent:", smsConsent, "(raw:", rawConsent, ")");
+
   // Determine entry point from site info if available
   const siteName = (body.site as Record<string, string> | undefined)?.displayName ?? "";
   let entryPoint = utmSource ?? "webflow_direct";
@@ -214,12 +222,16 @@ export async function POST(req: NextRequest) {
     console.log(`[Webflow Webhook] Created new lead ${leadId}, score: ${score}`);
   }
 
-  // Send welcome SMS
-  const smsResult = await sendSMS(
-    phone,
-    `Hey ${firstName}, this is your Maco Transport recruiter — got your info and will be in touch shortly. Questions? Reply to this text. Reply STOP to opt out.`
-  );
-  console.log("[Webflow Webhook] SMS result:", JSON.stringify(smsResult));
+  // Send welcome SMS only if the applicant consented
+  if (smsConsent) {
+    const smsResult = await sendSMS(
+      phone,
+      `Hey ${firstName}, this is your Maco Transport recruiter — got your info and will be in touch shortly. Questions? Reply to this text. Reply STOP to opt out.`
+    );
+    console.log("[Webflow Webhook] SMS result:", JSON.stringify(smsResult));
+  } else {
+    console.log("[Webflow Webhook] Skipping welcome SMS — applicant did not consent");
+  }
 
   // Alert recruiter on priority leads (score 70+)
   if (score >= 70) {
@@ -240,8 +252,8 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // Enroll in drip campaign (only for new leads)
-  if (!dup.existingId) {
+  // Enroll in drip campaign — only for new leads who consented to SMS
+  if (!dup.existingId && smsConsent) {
     const { data: campaign } = await supabase
       .from("drip_campaigns")
       .select("id")

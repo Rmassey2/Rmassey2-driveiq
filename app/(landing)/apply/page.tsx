@@ -41,12 +41,6 @@ export default function ApplyPage() {
     e.preventDefault();
     console.log("[Apply] handleSubmit fired");
 
-    if (!smsConsent) {
-      setError("Please agree to receive SMS messages to continue.");
-      trackEvent("form_error", { reason: "missing_sms_consent" });
-      return;
-    }
-
     setSubmitting(true);
     setError("");
 
@@ -61,7 +55,7 @@ export default function ApplyPage() {
         "do-you-have-a-valid-cdl": fd.get("cdl") as string,
         "years-of-experience": fd.get("experience") as string,
         "what-type-of-driver-are-you-interested-in-being": fd.get("type") as string,
-        sms_consent: true,
+        sms_consent: smsConsent,
         utm_source: utms.utm_source ?? "driveiq_landing",
         utm_medium: utms.utm_medium ?? "direct",
         utm_campaign: utms.utm_campaign ?? "company_driver_apply",
@@ -215,7 +209,7 @@ export default function ApplyPage() {
                     className="mt-0.5 h-4 w-4 flex-shrink-0 rounded border-white/30 bg-white/10 accent-[#d4a843] cursor-pointer"
                   />
                   <span className="text-xs text-gray-300 leading-relaxed">
-                    <span className="text-[#d4a843]">*</span> I agree to receive SMS messages from Maco Transport about my application and job opportunities. Message and data rates may apply. Reply STOP to opt out, HELP for help.
+                    <span className="text-gray-400">(Optional)</span> I agree to receive SMS messages from Maco Transport about my application and job opportunities. Message and data rates may apply. Reply STOP to opt out, HELP for help.
                   </span>
                 </label>
 
@@ -245,7 +239,7 @@ export default function ApplyPage() {
 
                 <button
                   type="submit"
-                  disabled={submitting || !smsConsent}
+                  disabled={submitting}
                   className="w-full rounded-lg bg-[#d4a843] py-3.5 font-bold text-[#0a1628] hover:bg-[#c49a35] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {submitting ? "Submitting..." : "Apply Now"}
