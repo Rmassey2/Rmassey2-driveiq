@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, FormEvent } from "react";
 import { captureUtmsFromUrl, getStoredUtms, trackEvent } from "@/lib/tracking";
 
 const EXP_OPTIONS = [
-  { value: "", label: "Select experience" },
+  { value: "", label: "Years of experience (optional)" },
   { value: "less_than_2", label: "Less than 2 years" },
   { value: "2_3", label: "2–3 years" },
   { value: "4_5", label: "4–5 years" },
@@ -12,7 +12,7 @@ const EXP_OPTIONS = [
 ];
 
 const TYPE_OPTIONS = [
-  { value: "", label: "Select driver type" },
+  { value: "", label: "Preferred route type (optional)" },
   { value: "Local", label: "Local" },
   { value: "Regional", label: "Regional" },
   { value: "OTR", label: "OTR (Over the Road)" },
@@ -39,8 +39,6 @@ export default function ApplyPage() {
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    console.log("[Apply] handleSubmit fired");
-
     setSubmitting(true);
     setError("");
 
@@ -50,11 +48,11 @@ export default function ApplyPage() {
       formData: {
         name: fd.get("name") as string,
         phone: fd.get("phone") as string,
-        email: fd.get("email") as string,
-        "zip-code": fd.get("zip") as string,
+        email: (fd.get("email") as string) || "",
+        "zip-code": (fd.get("zip") as string) || "",
         "do-you-have-a-valid-cdl": fd.get("cdl") as string,
-        "years-of-experience": fd.get("experience") as string,
-        "what-type-of-driver-are-you-interested-in-being": fd.get("type") as string,
+        "years-of-experience": (fd.get("experience") as string) || "",
+        "what-type-of-driver-are-you-interested-in-being": (fd.get("type") as string) || "",
         sms_consent: smsConsent,
         utm_source: utms.utm_source ?? "driveiq_landing",
         utm_medium: utms.utm_medium ?? "direct",
@@ -66,15 +64,12 @@ export default function ApplyPage() {
     };
 
     try {
-      console.log("[Apply] Posting to /api/webhooks/webflow-lead", payload);
       const res = await fetch("/api/webhooks/webflow-lead", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      console.log("[Apply] Response status:", res.status);
       const data = await res.json();
-      console.log("[Apply] Response body:", data);
       if (!res.ok || !data.success) {
         throw new Error(data.error || `Server returned ${res.status}`);
       }
@@ -82,7 +77,6 @@ export default function ApplyPage() {
       trackEvent("form_submit", { lead_id: data.lead_id ?? null });
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Unknown error";
-      console.error("[Apply] Submit error:", msg);
       setError(`Something went wrong: ${msg}. Please try again or call us directly.`);
       trackEvent("form_error", { reason: "submit_failed", message: msg });
     } finally {
@@ -90,67 +84,33 @@ export default function ApplyPage() {
     }
   }
 
+  const fieldCls =
+    "w-full rounded-lg bg-white/10 border border-white/20 px-4 py-3 text-white placeholder-gray-400 focus:border-[#d4a843] focus:outline-none focus:ring-1 focus:ring-[#d4a843]";
+
   return (
     <div className="min-h-screen bg-[#0a1628] text-white">
-      {/* Header */}
-      <header className="border-b border-white/10 px-6 py-4">
-        <div className="mx-auto max-w-5xl flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-lg bg-[#d4a843] flex items-center justify-center font-bold text-[#0a1628] text-lg">
+      {/* Header — call link visible on mobile too */}
+      <header className="border-b border-white/10 px-4 py-3">
+        <div className="mx-auto max-w-5xl flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <div className="h-9 w-9 rounded-lg bg-[#d4a843] flex items-center justify-center font-bold text-[#0a1628]">
               M
             </div>
-            <span className="text-xl font-bold tracking-tight">MACO Transport</span>
+            <span className="text-lg font-bold tracking-tight">MACO Transport</span>
           </div>
-          <a href="tel:+16628821593" className="text-sm text-[#d4a843] hover:underline hidden sm:block">
-            Questions? Call (662) 882-1593
+          <a
+            href="tel:+16628821593"
+            className="text-sm font-semibold text-[#d4a843] hover:underline whitespace-nowrap"
+          >
+            📞 (662) 882-1593
           </a>
         </div>
       </header>
 
-      {/* Hero */}
-      <main className="mx-auto max-w-5xl px-6 py-12 md:py-20">
-        <div className="grid md:grid-cols-2 gap-12 items-start">
-          {/* Left — copy */}
-          <div>
-            <h1 className="text-3xl md:text-4xl lg:text-5xl font-extrabold leading-tight">
-              <span className="text-[#d4a843]">61&#162; Per Mile.</span>
-              <br />
-              Home Every Weekend.
-              <br />
-              <span className="text-[#d4a843]">Memphis Based.</span>
-            </h1>
-            <p className="mt-6 text-lg text-gray-300 leading-relaxed">
-              MACO Transportation is hiring local, regional, and OTR company drivers.
-              Top pay, new equipment, and a team that respects your time.
-            </p>
-
-            <a
-              href="tel:+16628821593"
-              className="mt-6 block text-lg text-gray-200 hover:text-white"
-            >
-              Prefer to call? Reach Jacob at{" "}
-              <span className="font-bold text-xl text-[#d4a843]">(662) 882-1593</span>
-            </a>
-
-            <div className="mt-10 space-y-4">
-              {[
-                "Up to 61 CPM — minimum 2,500 miles/week",
-                "Weekends home guaranteed (Regional & Local)",
-                "$500 referral bonus per hire",
-                "Full benefits from day one",
-              ].map((item) => (
-                <div key={item} className="flex items-start gap-3">
-                  <svg className="mt-1 h-5 w-5 flex-shrink-0 text-[#d4a843]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span className="text-gray-200">{item}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Right — form */}
-          <div className="rounded-2xl bg-white/5 border border-white/10 p-8 backdrop-blur">
+      <main className="mx-auto max-w-5xl px-4 py-6 md:py-12">
+        <div className="grid md:grid-cols-2 gap-8 md:gap-12 items-start">
+          {/* Form — appears FIRST on mobile, SECOND on desktop */}
+          <div className="order-1 md:order-2 rounded-2xl bg-white/5 border border-white/10 p-5 md:p-8 backdrop-blur">
             {submitted ? (
               <div className="py-16 text-center">
                 <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-500/20">
@@ -159,62 +119,117 @@ export default function ApplyPage() {
                   </svg>
                 </div>
                 <h2 className="text-2xl font-bold">Thank you!</h2>
-                <p className="mt-2 text-gray-300">We&apos;ll be in touch within 24 hours.</p>
+                <p className="mt-2 text-gray-300">Jacob will reach out within 24 hours.</p>
+                <p className="mt-4 text-sm text-gray-400">
+                  Or call him right now at{" "}
+                  <a href="tel:+16628821593" className="font-semibold text-[#d4a843]">
+                    (662) 882-1593
+                  </a>
+                </p>
               </div>
             ) : (
-              <form onSubmit={handleSubmit} onChange={handleFormStart} className="space-y-5">
-                <h2 className="text-xl font-bold text-center mb-2">Start Your Application</h2>
+              <form onSubmit={handleSubmit} onChange={handleFormStart} className="space-y-4">
+                <h2 className="text-xl md:text-2xl font-bold text-center">
+                  Apply in 30 seconds
+                </h2>
+                <p className="text-center text-sm text-gray-400 -mt-1">
+                  Just three quick questions to get started
+                </p>
 
-                <input name="name" required placeholder="Full Name" className="w-full rounded-lg bg-white/10 border border-white/20 px-4 py-3 text-white placeholder-gray-400 focus:border-[#d4a843] focus:outline-none focus:ring-1 focus:ring-[#d4a843]" />
-                <input name="phone" required type="tel" placeholder="Phone Number" className="w-full rounded-lg bg-white/10 border border-white/20 px-4 py-3 text-white placeholder-gray-400 focus:border-[#d4a843] focus:outline-none focus:ring-1 focus:ring-[#d4a843]" />
-                <input name="email" type="email" placeholder="Email (optional)" className="w-full rounded-lg bg-white/10 border border-white/20 px-4 py-3 text-white placeholder-gray-400 focus:border-[#d4a843] focus:outline-none focus:ring-1 focus:ring-[#d4a843]" />
-                <input name="zip" placeholder="Zip Code" className="w-full rounded-lg bg-white/10 border border-white/20 px-4 py-3 text-white placeholder-gray-400 focus:border-[#d4a843] focus:outline-none focus:ring-1 focus:ring-[#d4a843]" />
+                {/* Required fields — visible above the fold */}
+                <input
+                  name="name"
+                  required
+                  placeholder="Full Name"
+                  autoComplete="name"
+                  className={fieldCls}
+                />
+                <input
+                  name="phone"
+                  required
+                  type="tel"
+                  inputMode="tel"
+                  placeholder="Phone Number"
+                  autoComplete="tel"
+                  className={fieldCls}
+                />
 
-                {/* CDL radio */}
                 <fieldset>
-                  <legend className="text-sm font-medium text-gray-300 mb-2">Do you have a valid CDL?</legend>
-                  <div className="flex gap-6">
-                    <label className="flex items-center gap-2 cursor-pointer">
+                  <legend className="text-sm font-medium text-gray-300 mb-2">
+                    Do you have a valid CDL?
+                  </legend>
+                  <div className="grid grid-cols-2 gap-3">
+                    <label className="flex items-center justify-center gap-2 rounded-lg border border-white/20 bg-white/5 px-4 py-3 cursor-pointer has-[:checked]:border-[#d4a843] has-[:checked]:bg-[#d4a843]/10">
                       <input type="radio" name="cdl" value="Yes" required className="accent-[#d4a843]" />
                       <span>Yes</span>
                     </label>
-                    <label className="flex items-center gap-2 cursor-pointer">
+                    <label className="flex items-center justify-center gap-2 rounded-lg border border-white/20 bg-white/5 px-4 py-3 cursor-pointer has-[:checked]:border-[#d4a843] has-[:checked]:bg-[#d4a843]/10">
                       <input type="radio" name="cdl" value="No" className="accent-[#d4a843]" />
                       <span>No</span>
                     </label>
                   </div>
                 </fieldset>
 
-                <select name="experience" required defaultValue="" className="w-full rounded-lg bg-white/10 border border-white/20 px-4 py-3 text-white focus:border-[#d4a843] focus:outline-none focus:ring-1 focus:ring-[#d4a843]">
-                  {EXP_OPTIONS.map((o) => (
-                    <option key={o.value} value={o.value} hidden={!o.value} className="bg-[#0a1628]">
-                      {o.label}
-                    </option>
-                  ))}
-                </select>
+                {error && <p className="text-red-400 text-sm">{error}</p>}
 
-                <select name="type" required defaultValue="" className="w-full rounded-lg bg-white/10 border border-white/20 px-4 py-3 text-white focus:border-[#d4a843] focus:outline-none focus:ring-1 focus:ring-[#d4a843]">
-                  {TYPE_OPTIONS.map((o) => (
-                    <option key={o.value} value={o.value} hidden={!o.value} className="bg-[#0a1628]">
-                      {o.label}
-                    </option>
-                  ))}
-                </select>
+                {/* PRIMARY submit — high up so people don't have to scroll */}
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="w-full rounded-lg bg-[#d4a843] py-4 text-lg font-bold text-[#0a1628] hover:bg-[#c49a35] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {submitting ? "Submitting..." : "Apply Now"}
+                </button>
 
-                <label className="flex items-start gap-3 cursor-pointer rounded-lg border border-white/20 bg-white/5 p-3 hover:bg-white/10 transition-colors">
+                <p className="text-center text-sm text-gray-400">
+                  Or call Jacob at{" "}
+                  <a href="tel:+16628821593" className="font-semibold text-[#d4a843] underline">
+                    (662) 882-1593
+                  </a>
+                </p>
+
+                {/* Optional fields — below the submit, won't block submission */}
+                <details className="group pt-2 border-t border-white/10">
+                  <summary className="cursor-pointer text-sm text-gray-400 hover:text-gray-200 list-none flex items-center justify-between">
+                    <span>Help us match you faster (optional)</span>
+                    <span className="text-xs group-open:rotate-180 transition-transform">▼</span>
+                  </summary>
+                  <div className="mt-3 space-y-3">
+                    <select name="experience" defaultValue="" className={fieldCls}>
+                      {EXP_OPTIONS.map((o) => (
+                        <option key={o.value} value={o.value} className="bg-[#0a1628]">
+                          {o.label}
+                        </option>
+                      ))}
+                    </select>
+                    <select name="type" defaultValue="" className={fieldCls}>
+                      {TYPE_OPTIONS.map((o) => (
+                        <option key={o.value} value={o.value} className="bg-[#0a1628]">
+                          {o.label}
+                        </option>
+                      ))}
+                    </select>
+                    <input name="zip" inputMode="numeric" placeholder="Zip Code (optional)" autoComplete="postal-code" className={fieldCls} />
+                    <input name="email" type="email" inputMode="email" placeholder="Email (optional)" autoComplete="email" className={fieldCls} />
+                  </div>
+                </details>
+
+                {/* SMS consent — optional, never blocks */}
+                <label className="flex items-start gap-3 cursor-pointer rounded-lg border border-white/10 bg-white/5 p-3 text-xs leading-relaxed">
                   <input
                     type="checkbox"
                     checked={smsConsent}
                     onChange={(e) => setSmsConsent(e.target.checked)}
-                    className="mt-0.5 h-4 w-4 flex-shrink-0 rounded border-white/30 bg-white/10 accent-[#d4a843] cursor-pointer"
+                    className="mt-0.5 h-4 w-4 flex-shrink-0 rounded border-white/30 bg-white/10 accent-[#d4a843]"
                   />
-                  <span className="text-xs text-gray-300 leading-relaxed">
-                    <span className="text-gray-400">(Optional)</span> I agree to receive SMS messages from Maco Transport about my application and job opportunities. Message and data rates may apply. Reply STOP to opt out, HELP for help.
+                  <span className="text-gray-300">
+                    <span className="text-gray-400">(Optional)</span> Send me SMS updates about
+                    my application. Reply STOP to opt out.
                   </span>
                 </label>
 
-                <p className="text-xs text-gray-400 leading-relaxed">
-                  View our{" "}
+                <p className="text-xs text-gray-500 leading-relaxed text-center">
+                  By applying you agree to our{" "}
                   <a
                     href="/privacy"
                     target="_blank"
@@ -231,27 +246,47 @@ export default function ApplyPage() {
                     className="text-[#d4a843] hover:underline"
                   >
                     Terms
-                  </a>{" "}
-                  for SMS program details.
+                  </a>
+                  .
                 </p>
-
-                {error && <p className="text-red-400 text-sm">{error}</p>}
-
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  className="w-full rounded-lg bg-[#d4a843] py-3.5 font-bold text-[#0a1628] hover:bg-[#c49a35] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {submitting ? "Submitting..." : "Apply Now"}
-                </button>
               </form>
             )}
+          </div>
+
+          {/* Marketing copy — SECOND on mobile (below the form), FIRST on desktop */}
+          <div className="order-2 md:order-1">
+            <h1 className="text-2xl md:text-4xl lg:text-5xl font-extrabold leading-tight">
+              <span className="text-[#d4a843]">61&#162; Per Mile.</span>
+              <br />
+              Home Every Weekend.
+              <br />
+              <span className="text-[#d4a843]">Memphis Based.</span>
+            </h1>
+            <p className="mt-4 md:mt-6 text-base md:text-lg text-gray-300 leading-relaxed">
+              MACO Transportation is hiring local, regional, and OTR company drivers.
+              Top pay, new equipment, and a team that respects your time.
+            </p>
+
+            <div className="mt-6 md:mt-10 space-y-3 md:space-y-4">
+              {[
+                "Up to 61 CPM — minimum 2,500 miles/week",
+                "Weekends home guaranteed (Regional & Local)",
+                "$500 referral bonus per hire",
+                "Full benefits from day one",
+              ].map((item) => (
+                <div key={item} className="flex items-start gap-3">
+                  <svg className="mt-1 h-5 w-5 flex-shrink-0 text-[#d4a843]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                  </svg>
+                  <span className="text-gray-200">{item}</span>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </main>
 
-      {/* Footer */}
-      <footer className="border-t border-white/10 px-6 py-8 mt-12">
+      <footer className="border-t border-white/10 px-6 py-6 mt-8">
         <div className="mx-auto max-w-5xl text-center text-sm text-gray-500">
           &copy; {new Date().getFullYear()} Maco Transport, LLC &mdash; Memphis, TN
         </div>
