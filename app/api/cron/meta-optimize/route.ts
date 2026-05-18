@@ -117,10 +117,12 @@ export async function GET(req: NextRequest) {
     if (!error) inserted++;
   }
 
+  const watcherResult = await runFunnelWatcher(supabase, org.id);
+
   await supabase.from("autonomous_actions").insert({
     org_id: org.id,
     action_type: "meta_optimize_run",
-    description: `Meta optimizer drafted ${inserted} recommendation(s) — meta_token=${dataset.hasMetaToken ? "live" : "missing"}, campaigns=${metaSnapshots.length}, funnel_rows=${funnel.length}`,
+    description: `Meta optimizer drafted ${inserted} recommendation(s) — meta_token=${dataset.hasMetaToken ? "live" : "missing"}, campaigns=${metaSnapshots.length}, funnel_rows=${funnel.length}, watcher=${watcherResult.flag ?? "ok"}`,
     reasoning: dataset.summary,
   });
 
@@ -131,7 +133,93 @@ export async function GET(req: NextRequest) {
     funnel_rows: funnel.length,
     lead_groups: leadsByUtm.length,
     recommendations: inserted,
+    watcher: watcherResult,
   });
+}
+
+// 24-hour funnel health check. Inserts a HIGH-priority cmo_inbox_items entry
+// when paid traffic is landing but failing to convert at any of the three
+// funnel stages (page_view → form_start → form_submit). The "flag" returned
+// is the stage that's broken, or null if everything looks fine.
+async function runFunnelWatcher(
+  supabase: ReturnType<typeof svc>,
+  orgId: string
+): Promise<{ flag: string | null; page_views: number; form_starts: number; form_submits: number }> {
+  const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const { data, error } = await supabase
+    .from("landing_page_events")
+    .select("event_type, session_id")
+    .gte("occurred_at", since);
+
+  if (error || !data) {
+    return { flag: null, page_views: 0, form_starts: 0, form_submits: 0 };
+  }
+
+  const seenPv = new Set<string>();
+  const seenStart = new Set<string>();
+  const seenSubmit = new Set<string>();
+  for (const r of data) {
+    const s = r.session_id as string;
+    if (r.event_type === "page_view") seenPv.add(s);
+    else if (r.event_type === "form_start") seenStart.add(s);
+    else if (r.event_type === "form_submit") seenSubmit.add(s);
+  }
+  const page_views = seenPv.size;
+  const form_starts = seenStart.size;
+  const form_submits = seenSubmit.size;
+
+  // Need a meaningful baseline of traffic before flagging.
+  if (page_views < 30) {
+    return { flag: null, page_views, form_starts, form_submits };
+  }
+
+  let flag: string | null = null;
+  let title = "";
+  let description = "";
+  let reasoning = "";
+
+  if (form_starts === 0) {
+    flag = "zero_form_starts";
+    title = `🚨 Landing page traffic but ZERO form engagement (24h)`;
+    description = `Over the last 24 hours, the apply pages received ${page_views} page views but ${form_starts} form starts and ${form_submits} submits. Users are landing but not interacting with the form at all — strong signal that the form is below the fold on mobile, or the page doesn't compel drivers to apply.`;
+    reasoning = `Page-view to form-start conversion is 0% with ${page_views} views — well below the 30+ baseline. Form is likely below the mobile fold or the page content isn't matching ad expectations.`;
+  } else if (form_starts >= 5 && form_submits === 0) {
+    flag = "zero_form_submits_with_starts";
+    title = `⚠️ ${form_starts} form starts but ZERO submits (24h)`;
+    description = `Over the last 24 hours, ${form_starts} users started filling out the form but zero completed it. Page-view to start conversion is okay (${pct(form_starts, page_views)}%), but the form itself is dropping users between start and submit. Investigate form length, validation errors, mobile keyboard issues.`;
+    reasoning = `Start-to-submit conversion is 0% on ${form_starts} starts — users abandon mid-form.`;
+  } else if (form_submits === 0) {
+    flag = "zero_form_submits";
+    title = `⚠️ Zero form submits in 24h (${page_views} page views)`;
+    description = `Over the last 24 hours: ${page_views} page views, ${form_starts} form starts, 0 submits. Combined funnel is broken — could be a mix of page-level engagement and form-completion issues.`;
+    reasoning = `PV→Submit 0% over ${page_views} page views.`;
+  } else {
+    return { flag: null, page_views, form_starts, form_submits };
+  }
+
+  await supabase.from("cmo_inbox_items").insert({
+    org_id: orgId,
+    item_type: "funnel_alert",
+    title: title.slice(0, 240),
+    action_description: description.slice(0, 2000),
+    reasoning: reasoning.slice(0, 2000),
+    priority: "high",
+    status: "pending",
+    data_points: {
+      flag,
+      page_views,
+      form_starts,
+      form_submits,
+      window_hours: 24,
+    } as Record<string, unknown>,
+  });
+
+  return { flag, page_views, form_starts, form_submits };
+}
+
+function pct(num: number, denom: number): number {
+  if (!denom) return 0;
+  return Math.round((num / denom) * 1000) / 10;
 }
 
 async function collectMetaSnapshots(
