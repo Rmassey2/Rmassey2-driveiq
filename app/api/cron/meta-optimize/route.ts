@@ -173,26 +173,34 @@ async function runFunnelWatcher(
     return { flag: null, page_views, form_starts, form_submits };
   }
 
+  const pvToStartRate = page_views ? (form_starts / page_views) * 100 : 0;
+  const startToSubmitRate = form_starts ? (form_submits / form_starts) * 100 : 0;
+  const pvToSubmitRate = page_views ? (form_submits / page_views) * 100 : 0;
+
+  // Rate-based thresholds tuned to recruiting-funnel norms:
+  // healthy ~50% PV→start, ~50% start→submit, ~25% PV→submit.
+  // Anything below 5% PV→start or 25% start→submit (with enough volume) is a
+  // clear regression worth flagging.
   let flag: string | null = null;
   let title = "";
   let description = "";
   let reasoning = "";
 
-  if (form_starts === 0) {
-    flag = "zero_form_starts";
-    title = `🚨 Landing page traffic but ZERO form engagement (24h)`;
-    description = `Over the last 24 hours, the apply pages received ${page_views} page views but ${form_starts} form starts and ${form_submits} submits. Users are landing but not interacting with the form at all — strong signal that the form is below the fold on mobile, or the page doesn't compel drivers to apply.`;
-    reasoning = `Page-view to form-start conversion is 0% with ${page_views} views — well below the 30+ baseline. Form is likely below the mobile fold or the page content isn't matching ad expectations.`;
-  } else if (form_starts >= 5 && form_submits === 0) {
-    flag = "zero_form_submits_with_starts";
-    title = `⚠️ ${form_starts} form starts but ZERO submits (24h)`;
-    description = `Over the last 24 hours, ${form_starts} users started filling out the form but zero completed it. Page-view to start conversion is okay (${pct(form_starts, page_views)}%), but the form itself is dropping users between start and submit. Investigate form length, validation errors, mobile keyboard issues.`;
-    reasoning = `Start-to-submit conversion is 0% on ${form_starts} starts — users abandon mid-form.`;
-  } else if (form_submits === 0) {
-    flag = "zero_form_submits";
-    title = `⚠️ Zero form submits in 24h (${page_views} page views)`;
-    description = `Over the last 24 hours: ${page_views} page views, ${form_starts} form starts, 0 submits. Combined funnel is broken — could be a mix of page-level engagement and form-completion issues.`;
-    reasoning = `PV→Submit 0% over ${page_views} page views.`;
+  if (pvToStartRate < 5) {
+    flag = "low_form_engagement";
+    title = `🚨 Only ${pct(form_starts, page_views)}% of landing-page visitors touch the form (24h)`;
+    description = `Last 24h: ${page_views} page views, ${form_starts} form starts (${pct(form_starts, page_views)}%), ${form_submits} submits. Visitors are landing but not interacting with the form — strong signal the form is below the fold on mobile, the hero copy doesn't drive intent, or the page is broken in the Facebook in-app browser.`;
+    reasoning = `Page-view→form-start at ${pct(form_starts, page_views)}% is far below the 50% recruiting-funnel norm. Suggests page-level engagement failure, not form-level.`;
+  } else if (form_starts >= 5 && startToSubmitRate < 25) {
+    flag = "low_form_completion";
+    title = `⚠️ Form abandonment is high — ${pct(form_submits, form_starts)}% finish rate (24h)`;
+    description = `Last 24h: ${form_starts} form starts but only ${form_submits} submits (${pct(form_submits, form_starts)}%). Users start filling out the form but bail before submitting. Investigate form length, validation errors, slow webhook, or mobile keyboard issues.`;
+    reasoning = `Start-to-submit at ${pct(form_submits, form_starts)}% is far below the ~50% norm.`;
+  } else if (page_views >= 100 && pvToSubmitRate < 1) {
+    flag = "low_overall_conversion";
+    title = `⚠️ Landing-page conversion is critically low: ${pct(form_submits, page_views)}% PV→submit (24h)`;
+    description = `Last 24h: ${page_views} page views → ${form_submits} submits (${pct(form_submits, page_views)}%). Spend is going to waste at this conversion rate; look at page load speed, ad-message-match, and mobile UX.`;
+    reasoning = `PV→Submit at ${pct(form_submits, page_views)}% is below 1% — wasted spend baseline.`;
   } else {
     return { flag: null, page_views, form_starts, form_submits };
   }
