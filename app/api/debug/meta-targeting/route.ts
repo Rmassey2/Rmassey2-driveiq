@@ -159,7 +159,7 @@ export async function POST(req: NextRequest) {
 
   if (disableAdvantage) {
     const ta = (targeting.targeting_automation as Record<string, unknown> | undefined) ?? {};
-    const next = { ...ta, advantage_audience: 0 };
+    const next: Record<string, unknown> = { ...ta, advantage_audience: 0 };
     // Also remove the geo individual_setting so Meta doesn't expand the radius.
     if (next.individual_setting && typeof next.individual_setting === "object") {
       next.individual_setting = { ...(next.individual_setting as Record<string, unknown>), geo: 0 };
