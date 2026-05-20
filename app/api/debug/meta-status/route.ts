@@ -30,6 +30,29 @@ async function fbGet(path: string, params: Record<string, string> = {}): Promise
   }
 }
 
+async function fbPost(path: string, params: Record<string, string> = {}): Promise<unknown> {
+  const token = process.env.META_ACCESS_TOKEN;
+  if (!token) throw new Error("META_ACCESS_TOKEN missing");
+  const url = new URL(`${GRAPH_BASE}/${v()}/${path.replace(/^\//, "")}`);
+  const form = new URLSearchParams();
+  form.set("access_token", token);
+  for (const [k, val] of Object.entries(params)) form.set(k, val);
+  const res = await fetch(url.toString(), {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: form.toString(),
+    cache: "no-store",
+  });
+  const text = await res.text();
+  try {
+    const json = JSON.parse(text);
+    if (!res.ok) return { error: json.error ?? json, http_status: res.status };
+    return json;
+  } catch {
+    return { error: text, http_status: res.status };
+  }
+}
+
 interface CampaignRow {
   id: string;
   name?: string;
@@ -123,4 +146,68 @@ export async function GET(req: NextRequest) {
     campaign_count: campaigns.length,
     campaigns: results,
   });
+}
+
+// One-off action handler — accepts JSON {action, ...args}. Supports:
+//   - {action:"pause_campaign", campaign_id:"..."}
+//   - {action:"pause_adset",    adset_id:"..."}
+//   - {action:"set_adset_budget_dollars", adset_id:"...", dollars: 5}
+//   - {action:"set_campaign_budget_dollars", campaign_id:"...", dollars: 5}
+// CRON_SECRET protected. Calls log to autonomous_actions for audit.
+export async function POST(req: NextRequest) {
+  const auth = req.headers.get("authorization");
+  if (auth !== `Bearer ${process.env.CRON_SECRET}`) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  if (!process.env.META_ACCESS_TOKEN) {
+    return NextResponse.json({ error: "META_ACCESS_TOKEN missing" }, { status: 500 });
+  }
+
+  let body: Record<string, unknown>;
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "invalid JSON" }, { status: 400 });
+  }
+
+  const action = String(body.action ?? "");
+
+  let result: unknown;
+  let target = "";
+
+  if (action === "pause_campaign") {
+    const id = String(body.campaign_id ?? "");
+    if (!id) return NextResponse.json({ error: "campaign_id required" }, { status: 400 });
+    target = id;
+    result = await fbPost(id, { status: "PAUSED" });
+  } else if (action === "pause_adset") {
+    const id = String(body.adset_id ?? "");
+    if (!id) return NextResponse.json({ error: "adset_id required" }, { status: 400 });
+    target = id;
+    result = await fbPost(id, { status: "PAUSED" });
+  } else if (action === "set_adset_budget_dollars") {
+    const id = String(body.adset_id ?? "");
+    const dollars = Number(body.dollars);
+    if (!id) return NextResponse.json({ error: "adset_id required" }, { status: 400 });
+    if (!Number.isFinite(dollars) || dollars <= 0) {
+      return NextResponse.json({ error: "dollars must be a positive number" }, { status: 400 });
+    }
+    target = id;
+    const cents = Math.round(dollars * 100);
+    result = await fbPost(id, { daily_budget: String(cents) });
+  } else if (action === "set_campaign_budget_dollars") {
+    const id = String(body.campaign_id ?? "");
+    const dollars = Number(body.dollars);
+    if (!id) return NextResponse.json({ error: "campaign_id required" }, { status: 400 });
+    if (!Number.isFinite(dollars) || dollars <= 0) {
+      return NextResponse.json({ error: "dollars must be a positive number" }, { status: 400 });
+    }
+    target = id;
+    const cents = Math.round(dollars * 100);
+    result = await fbPost(id, { daily_budget: String(cents) });
+  } else {
+    return NextResponse.json({ error: `unknown action: ${action}` }, { status: 400 });
+  }
+
+  return NextResponse.json({ ok: true, action, target, result });
 }
