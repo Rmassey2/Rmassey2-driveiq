@@ -11,14 +11,16 @@ interface AdResult {
 
 interface Campaign {
   id: string;
-  name: string;
+  campaign_name: string;
   segment: string | null;
-  ad_type: string | null;
-  headline: string | null;
-  body: string | null;
-  cta: string | null;
+  ad_copy_headline: string | null;
+  ad_copy_body: string | null;
+  cta_text: string | null;
+  target_audience: string | null;
   status: string;
   platform: string | null;
+  apply_link: string | null;
+  ai_generated: boolean | null;
   created_at: string;
 }
 
@@ -200,50 +202,52 @@ export default function AdStudioPage() {
             No campaigns yet. Generate your first ad above.
           </p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-gray-700/50 text-left text-gray-400">
-                  <th className="pb-2 pr-4">Name</th>
-                  <th className="pb-2 pr-4">Segment</th>
-                  <th className="pb-2 pr-4">Type</th>
-                  <th className="pb-2 pr-4">Platform</th>
-                  <th className="pb-2 pr-4">Status</th>
-                  <th className="pb-2">Created</th>
-                </tr>
-              </thead>
-              <tbody>
-                {campaigns.map((c) => (
-                  <tr
-                    key={c.id}
-                    className="border-b border-gray-700/30 text-gray-300"
-                  >
-                    <td className="py-2 pr-4 font-medium text-white">
-                      {c.name}
-                    </td>
-                    <td className="py-2 pr-4">{c.segment ?? "—"}</td>
-                    <td className="py-2 pr-4">{c.ad_type ?? "—"}</td>
-                    <td className="py-2 pr-4">{c.platform ?? "—"}</td>
-                    <td className="py-2 pr-4">
-                      <span
-                        className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                          c.status === "approved"
-                            ? "bg-green-500/10 text-green-400"
-                            : c.status === "draft"
-                              ? "bg-yellow-500/10 text-yellow-400"
-                              : "bg-gray-500/10 text-gray-400"
-                        }`}
-                      >
-                        {c.status}
-                      </span>
-                    </td>
-                    <td className="py-2">
+          <div className="space-y-3">
+            {campaigns.map((c) => (
+              <div
+                key={c.id}
+                className="rounded-lg border border-gray-700/50 bg-[#0a1628] p-4"
+              >
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-white">{c.campaign_name}</p>
+                    <p className="mt-1 text-xs text-gray-400">
+                      {c.segment ?? "—"} · {c.platform ?? "—"} ·{" "}
+                      {c.ai_generated ? "AI-generated" : "Manual"} ·{" "}
                       {new Date(c.created_at).toLocaleDateString()}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                    </p>
+                  </div>
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                      c.status === "approved"
+                        ? "bg-green-500/10 text-green-400"
+                        : c.status === "draft"
+                          ? "bg-yellow-500/10 text-yellow-400"
+                          : "bg-gray-500/10 text-gray-400"
+                    }`}
+                  >
+                    {c.status}
+                  </span>
+                </div>
+                {c.ad_copy_headline && (
+                  <p className="mt-2 font-medium text-white">{c.ad_copy_headline}</p>
+                )}
+                {c.ad_copy_body && (
+                  <p className="mt-1 text-sm text-gray-300">{c.ad_copy_body}</p>
+                )}
+                {c.cta_text && (
+                  <p className="mt-2 text-xs">
+                    <span className="text-gray-500">CTA:</span>{" "}
+                    <span className="text-[#c8a951] font-medium">{c.cta_text}</span>
+                  </p>
+                )}
+                {c.target_audience && (
+                  <p className="mt-1 text-xs text-gray-400">
+                    <span className="text-gray-500">Target:</span> {c.target_audience}
+                  </p>
+                )}
+              </div>
+            ))}
           </div>
         )}
       </div>

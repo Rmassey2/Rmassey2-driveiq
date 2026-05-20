@@ -97,18 +97,19 @@ Return a JSON object with these exact keys:
       .single();
 
     if (org) {
-      await supabase.from("ai_campaigns").insert({
+      const { error: insertErr } = await supabase.from("ai_campaigns").insert({
         org_id: org.id,
-        name: `${segment} - ${ad_type}`,
+        campaign_name: `${segment} - ${ad_type} - ${new Date().toISOString().slice(0, 10)}`,
         segment,
-        ad_type,
-        headline: adJson.headline,
-        body: adJson.body,
-        cta: adJson.cta,
-        targeting_suggestion: adJson.targeting_suggestion,
         platform: "facebook",
         status: "draft",
+        ad_copy_headline: adJson.headline,
+        ad_copy_body: adJson.body,
+        cta_text: adJson.cta,
+        target_audience: adJson.targeting_suggestion,
+        ai_generated: true,
       });
+      if (insertErr) console.warn("[generate-ad] insert failed:", insertErr.message);
     }
 
     return NextResponse.json(adJson);
