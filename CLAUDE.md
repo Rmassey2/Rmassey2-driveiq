@@ -99,7 +99,6 @@ active | considering | contact_later | do_not_hire | hired | withdrew | archived
 - ATS: Tenstreet (system of record for full application, MVR/PSP, compliance)
 - Pay: up to 61 cents/mile, minimum 2,500 miles/week
 - Home time: weekends guaranteed (Regional/Local), bi-weekly (OTR)
-- Equipment: new 2024 Freightliners
 - Referral bonus: $500 per hire ($250 at first dispatch, $250 at 90 days)
 - Segments: OTR | Regional | Local | Dedicated | Owner-Op
 - Recruiter: Jacob (jacob@macotransport.com)

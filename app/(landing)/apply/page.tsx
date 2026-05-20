@@ -292,7 +292,7 @@ export default function ApplyPage() {
             </h1>
             <p className="mt-4 md:mt-6 text-base md:text-lg text-gray-300 leading-relaxed">
               MACO Transportation is hiring local, regional, and OTR company drivers.
-              Top pay, new equipment, and a team that respects your time.
+              Top pay, well-maintained equipment, and a team that respects your time.
             </p>
 
             <div className="mt-6 md:mt-10 space-y-3 md:space-y-4">
