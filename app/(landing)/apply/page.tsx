@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, FormEvent } from "react";
-import { captureUtmsFromUrl, getStoredUtms, trackEvent } from "@/lib/tracking";
+import { captureUtmsFromUrl, getStoredUtms, isFacebookInAppBrowser, trackEvent } from "@/lib/tracking";
 
 const EXP_OPTIONS = [
   { value: "", label: "Years of experience (optional)" },
@@ -24,11 +24,16 @@ export default function ApplyPage() {
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState("");
   const [smsConsent, setSmsConsent] = useState(false);
+  const [inFbBrowser, setInFbBrowser] = useState(false);
   const formStartedRef = useRef(false);
 
   useEffect(() => {
     captureUtmsFromUrl();
     trackEvent("page_view");
+    if (isFacebookInAppBrowser()) {
+      setInFbBrowser(true);
+      trackEvent("form_error", { reason: "fb_in_app_browser_detected" });
+    }
   }, []);
 
   function handleFormStart() {
@@ -106,6 +111,29 @@ export default function ApplyPage() {
           </a>
         </div>
       </header>
+
+      {/* FB in-app browser fallback — the form often breaks in FBIOS/FB_IAB,
+          so surface a tap-to-call CTA + "open in browser" hint. */}
+      {inFbBrowser && (
+        <div className="bg-[#d4a843] text-[#0a1628] px-4 py-3">
+          <div className="mx-auto max-w-5xl flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left">
+            <p className="text-sm font-semibold">
+              ⚠️ Trouble with the form? Tap to call Jacob — he can take your info in 60 seconds.
+            </p>
+            <a
+              href="tel:+16628821593"
+              className="inline-block rounded-lg bg-[#0a1628] text-white px-4 py-2 font-bold text-sm whitespace-nowrap hover:bg-[#1a2c4a]"
+              onClick={() => trackEvent("form_error", { reason: "fb_browser_tap_to_call" })}
+            >
+              📞 Call (662) 882-1593
+            </a>
+          </div>
+          <p className="mx-auto max-w-5xl text-xs mt-2 opacity-80 text-center sm:text-left">
+            Or for the full form: tap the <strong>⋯</strong> (iPhone) or <strong>⋮</strong> (Android) menu above
+            and choose <strong>Open in Safari / Chrome</strong>.
+          </p>
+        </div>
+      )}
 
       <main className="mx-auto max-w-5xl px-4 py-6 md:py-12">
         <div className="grid md:grid-cols-2 gap-8 md:gap-12 items-start">

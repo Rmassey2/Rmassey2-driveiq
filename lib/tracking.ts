@@ -79,6 +79,15 @@ export function getStoredUtms(): CapturedUtms {
   }
 }
 
+// Detects Facebook's in-app browser (FBIOS for iPhone Facebook app, FB4A for
+// Android Facebook app, IABMV for both). These browsers strip features that
+// break our React form — drivers hit the page, can't interact, bail.
+export function isFacebookInAppBrowser(): boolean {
+  if (typeof navigator === "undefined") return false;
+  const ua = navigator.userAgent || "";
+  return /FBIOS|FB4A|FB_IAB|IABMV/.test(ua);
+}
+
 export function getOrCreateSessionId(): string {
   if (typeof window === "undefined") return "ssr";
   try {
