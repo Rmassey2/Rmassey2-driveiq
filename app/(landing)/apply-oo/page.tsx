@@ -229,8 +229,9 @@ export default function ApplyOwnerOpPage() {
                     className="mt-0.5 h-4 w-4 flex-shrink-0 rounded border-white/30 bg-white/10 accent-[#d4a843]"
                   />
                   <span className="text-gray-300">
-                    <span className="text-gray-400">(Optional)</span> Send me SMS updates about
-                    my application. Reply STOP to opt out.
+                    <span className="text-gray-400">(Optional)</span> I agree to receive SMS
+                    messages from Maco Transport about my application and job opportunities.
+                    Message and data rates may apply. Reply STOP to opt out, HELP for help.
                   </span>
                 </label>
 
