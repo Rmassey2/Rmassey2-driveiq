@@ -258,27 +258,6 @@ export default function ApplyPage() {
                   </div>
                 </details>
 
-                <p className="text-xs text-gray-500 leading-relaxed text-center">
-                  By applying you agree to our{" "}
-                  <a
-                    href="/privacy"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-[#d4a843] hover:underline"
-                  >
-                    Privacy Policy
-                  </a>{" "}
-                  and{" "}
-                  <a
-                    href="/terms"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-[#d4a843] hover:underline"
-                  >
-                    Terms
-                  </a>
-                  .
-                </p>
               </form>
             )}
           </div>
@@ -317,8 +296,19 @@ export default function ApplyPage() {
       </main>
 
       <footer className="border-t border-white/10 px-6 py-6 mt-8">
-        <div className="mx-auto max-w-5xl text-center text-sm text-gray-500">
-          &copy; {new Date().getFullYear()} Maco Transport, LLC &mdash; Memphis, TN
+        <div className="mx-auto max-w-5xl text-center text-sm text-gray-500 space-y-2">
+          <div>
+            <a href="/privacy" target="_blank" rel="noopener noreferrer" className="hover:text-gray-300 underline">
+              Privacy Policy
+            </a>
+            <span className="mx-2">·</span>
+            <a href="/terms" target="_blank" rel="noopener noreferrer" className="hover:text-gray-300 underline">
+              Terms
+            </a>
+          </div>
+          <div>
+            &copy; {new Date().getFullYear()} Maco Transport, LLC &mdash; Memphis, TN
+          </div>
         </div>
       </footer>
     </div>
