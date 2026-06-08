@@ -87,7 +87,7 @@ export async function GET(req: NextRequest) {
     process.env.ADMIN_EMAIL ?? "rmassey@macotransport.com";
   const adminPhone = process.env.ADMIN_PHONE ?? null;
 
-  let actionsTaken: string[] = [];
+  const actionsTaken: string[] = [];
 
   if (changed) {
     if (currentStatus === "VERIFIED") {
