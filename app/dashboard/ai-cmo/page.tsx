@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { MetaCampaignOptimizer } from "@/components/meta-campaign-optimizer";
 
 interface InboxItem {
   id: string;
@@ -165,9 +164,6 @@ export default function AiCmoDashboard() {
           )}
         </div>
       </div>
-
-      {/* Meta Campaign Optimizer */}
-      <MetaCampaignOptimizer />
 
       {/* Quick Nav */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">

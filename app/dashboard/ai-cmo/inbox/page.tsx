@@ -14,12 +14,6 @@ interface InboxItem {
   created_at: string;
 }
 
-const EXECUTABLE_ACTIONS = new Set([
-  "pause_adset",
-  "pause_campaign",
-  "shift_budget",
-]);
-
 export default function CmoInboxPage() {
   const [items, setItems] = useState<InboxItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -77,28 +71,6 @@ export default function CmoInboxPage() {
     setActionLoading(null);
   }
 
-  async function handleExecute(id: string) {
-    setActionLoading(id);
-    clearItemFeedback(id);
-    const res = await fetch(`/api/cmo/inbox/${id}/execute`, {
-      method: "POST",
-    });
-    const data = await safeJson(res);
-    if (res.ok && data?.ok) {
-      const detail = asString(data.detail) ?? "completed";
-      const msg = data.executed
-        ? `Executed: ${detail}`
-        : `Approved (manual action required): ${detail}`;
-      setItemFeedback(id, "success", msg);
-      setTimeout(() => {
-        setItems((prev) => prev.filter((i) => i.id !== id));
-      }, 1500);
-    } else {
-      setItemFeedback(id, "error", asString(data?.error) ?? `Execute failed (${res.status})`);
-    }
-    setActionLoading(null);
-  }
-
   if (loading) {
     return (
       <div className="flex h-full items-center justify-center">
@@ -136,7 +108,6 @@ export default function CmoInboxPage() {
             const utmContent =
               typeof dp.utm_content === "string" ? dp.utm_content : null;
             const isMetaOpt = item.item_type === "meta_optimization";
-            const canExecute = isMetaOpt && actionType !== null && EXECUTABLE_ACTIONS.has(actionType);
             const fb = feedback[item.id];
 
             return (
@@ -212,27 +183,13 @@ export default function CmoInboxPage() {
                 )}
 
                 <div className="mt-4 flex flex-wrap gap-2">
-                  {canExecute && (
-                    <button
-                      onClick={() => handleExecute(item.id)}
-                      disabled={actionLoading === item.id}
-                      className="rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-50"
-                      title="Apply this change directly to Meta via the Ads API"
-                    >
-                      {actionLoading === item.id ? "Working…" : "Approve & Execute"}
-                    </button>
-                  )}
                   <button
                     onClick={() => handleAction(item.id, "approved")}
                     disabled={actionLoading === item.id}
-                    className={`rounded-lg px-4 py-2 text-sm font-semibold disabled:opacity-50 ${
-                      canExecute
-                        ? "bg-[#111d33] text-gray-200 ring-1 ring-gray-600 hover:bg-gray-700"
-                        : "bg-green-600 text-white hover:bg-green-700"
-                    }`}
-                    title={canExecute ? "Mark approved without calling the Meta API" : "Approve"}
+                    className="rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-50"
+                    title="Approve"
                   >
-                    {canExecute ? "Approve (manual)" : "Approve"}
+                    Approve
                   </button>
                   {!isMetaOpt && (
                     <button
