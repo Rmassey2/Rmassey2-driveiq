@@ -207,7 +207,8 @@ All paid traffic to `/apply` and `/apply-oo` should carry `utm_source`, `utm_med
 ### Twilio Status (SMS provisioning, end of Session 8)
 - Toll-free +18664025201: **Verification REJECTED** by Twilio Trust Hub — deferred indefinitely; 901 number is sufficient for current volume
 - Local 901 +19015828745: number is live, attached to **Low Volume Mixed A2P Messaging Service** (SID in `TWILIO_MESSAGING_SERVICE_SID`)
-- A2P 10DLC: **Brand Registered ✅**, **Campaign Under Review** (resubmitted Session 8 after the original was rejected for making SMS consent mandatory)
+- A2P 10DLC: **Brand Registered ✅**, **Campaign Verified ✅** (new campaign `CM95173255fd5bc77124a05501edee9cc5`, External ID `C73T4BM`; verified 2026-07-06 after Session 8 resubmission)
+- **Real SMS delivery confirmed end-to-end 2026-07-06** — test send from 901 button reached admin phone as `delivered` in Twilio Messaging Logs. Drips now fire on the hourly cron.
 - Account SID + Auth Token in Vercel are now correct (`AC3f38…c1d4`) — were wrong from initial setup until Session 8
 - API integration verified end-to-end: test-SMS button returns success with SM SID, message reaches Twilio. Carrier delivery blocked until TCR approves the campaign — once approved, drips fire automatically on the hourly cron
 - Code path: `lib/twilio.ts` prefers `TWILIO_MESSAGING_SERVICE_SID` over raw From; the test-sms route (`/api/leads/test-sms`) also prefers the messaging service. Numbers in a messaging service pool cannot be used as raw From (Twilio 21606)
@@ -222,7 +223,7 @@ All paid traffic to `/apply` and `/apply-oo` should carry `utm_source`, `utm_med
 
 ### Pending / In Progress
 - ~~Twilio toll-free verification~~ REJECTED — deferred; 901 number covers current needs
-- Twilio A2P 10DLC Campaign — **Under Review** as of 2026-05-17 (resubmitted Session 8); typical TCR approval window 1–7 days. Watch for Twilio email confirming Verified status.
+- ~~Twilio A2P 10DLC Campaign approval~~ ✅ **Verified 2026-07-06**. Full end-to-end delivery confirmed via 901 test button. Drips + welcome SMS + priority-lead alerts now flow to real phones.
 - Owner Operators Facebook Traffic campaign (duplicate Company Drivers campaign, point to `/apply-oo`)
 - getloaded.net Apply Now buttons still broken (need Webflow access to fix)
 - Active driver hire dates all show 3/25/2026 — need real hire dates
@@ -242,13 +243,14 @@ All paid traffic to `/apply` and `/apply-oo` should carry `utm_source`, `utm_med
 - Test Driver record in hired_drivers needs to be deleted
 
 ### Current Issues (blocking or recently surfaced)
-- **Twilio SMS still blocked carrier-side** — A2P 10DLC campaign Under Review at TCR after Session 8 resubmission; expect 1–7 days. Once Verified, drips fire automatically on the hourly cron — no further code changes needed.
+- ~~Twilio SMS blocked carrier-side~~ ✅ **RESOLVED 2026-07-06**. A2P 10DLC campaign Verified by TCR after Session 8 resubmission; test SMS delivered end-to-end to admin phone. Drips fire automatically on the hourly cron.
 - ~~`TWILIO_901_NUMBER` env var not yet set in Vercel~~ ✅ Set Session 8 to `+19015828745`. Also added `TWILIO_MESSAGING_SERVICE_SID` (Low Volume Mixed A2P Messaging Service)
 - **getloaded.net Apply Now buttons broken** — need Webflow editor access to fix; meanwhile owner-op traffic routes via Facebook → `/apply-oo`
 - **Webflow → DriveIQ webhook flaky** — JS embed on driveformaco.com occasionally drops submits; consider pointing the domain at `/apply` directly to remove Webflow from the path
 - **Hire-date hygiene** — 53 active driver records share hire_date 2026-03-25; retention risk scoring and tenure alerts are skewed until these are backfilled
 - **Page-visit analytics gap** — source attribution + conversion funnel are live; raw visits are not tracked yet (decision pending: custom Supabase table vs Vercel Analytics)
 - **DAT API** — not yet started; need account tier + credentials from Maco's DAT rep before implementation
+- **No password reset flow in the app** — surfaced 2026-07-06 when admin needed to reset. Login page has email/password only; no "Forgot password?" link, no `/auth/callback`, no `/reset-password`. Supabase's password-reset emails redirect to URLs that 404. Workaround for now: reset from the Supabase dashboard directly (Authentication → Users → click user → set new password). Follow-up: add `/forgot-password`, `/auth/callback`, `/reset-password` routes and a link on `/login`, whitelist the redirect URL in Supabase Auth Settings. ~30-min job.
 
 ---
 
@@ -281,7 +283,7 @@ DAT Freight & Analytics provides load board data, rate benchmarks, and lane anal
 
 ## Next Session Priorities
 1. ~~Set `TWILIO_901_NUMBER` in Vercel~~ ✅ Done Session 8
-2. **Watch for TCR approval email** on the A2P 10DLC campaign resubmission (submitted 2026-05-17, typical 1–7 day window). Once Verified, send a real test SMS via the 901 button to your own phone — Twilio should now return `delivered`. Drips to enrolled leads start automatically on the next hourly cron.
+2. ~~TCR approval + real SMS delivery~~ ✅ Verified 2026-07-06. Full delivery confirmed via 901 test button.
 3. ~~Create Owner Operators Traffic campaign~~ ✅ Live and high-performing (1.62% CTR) — CLAUDE.md was stale; campaign already exists pointing at /apply-oo
 4. Disable / delete Company Drivers v1 (rejected-ad error)
 5. Update real hire dates for the 53 active drivers
