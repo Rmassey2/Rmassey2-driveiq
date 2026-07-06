@@ -103,12 +103,20 @@ export default function ApplyPage() {
             </div>
             <span className="text-lg font-bold tracking-tight">MACO Transport</span>
           </div>
-          <a
-            href="tel:+16628821593"
-            className="text-sm font-semibold text-[#d4a843] hover:underline whitespace-nowrap"
-          >
-            📞 (662) 882-1593
-          </a>
+          <div className="flex flex-col items-end gap-0.5 whitespace-nowrap">
+            <a
+              href="tel:+16628821593"
+              className="text-sm font-semibold text-[#d4a843] hover:underline"
+            >
+              📞 (662) 882-1593
+            </a>
+            <a
+              href="tel:+19015828745"
+              className="text-xs text-gray-400 hover:text-[#d4a843] hover:underline"
+            >
+              or (901) 582-8745
+            </a>
+          </div>
         </div>
       </header>
 
