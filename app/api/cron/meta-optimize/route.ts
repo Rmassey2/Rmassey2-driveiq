@@ -82,13 +82,11 @@ export async function GET(req: NextRequest) {
   const metaSnapshots = await collectMetaSnapshots(supabase, org.id);
   const funnel = await collectFunnel(supabase);
   const leadsByUtm = await collectLeadsByUtm(supabase, org.id);
-  const creativeAge = await collectCreativeAge(supabase, org.id);
 
   const dataset = buildDataset({
     metaSnapshots,
     funnel,
     leadsByUtm,
-    creativeAge,
     hasMetaToken: !!process.env.META_ACCESS_TOKEN,
   });
 
@@ -342,31 +340,11 @@ async function collectLeadsByUtm(
   return Array.from(counts.values()).sort((a, b) => b.count - a.count);
 }
 
-async function collectCreativeAge(
-  supabase: ReturnType<typeof svc>,
-  orgId: string
-): Promise<{ name: string; age_days: number; status: string }[]> {
-  const { data } = await supabase
-    .from("ai_campaigns")
-    .select("name, status, created_at")
-    .eq("org_id", orgId)
-    .order("created_at", { ascending: false })
-    .limit(20);
-
-  const now = Date.now();
-  return (data ?? []).map((c) => ({
-    name: c.name as string,
-    status: c.status as string,
-    age_days: Math.floor((now - new Date(c.created_at as string).getTime()) / 86400000),
-  }));
-}
-
 interface Dataset {
   hasMetaToken: boolean;
   metaSnapshots: MetaSnapshot[];
   funnel: FunnelRow[];
   leadsByUtm: LeadAggRow[];
-  creativeAge: { name: string; age_days: number; status: string }[];
   summary: string;
 }
 
@@ -375,7 +353,6 @@ function buildDataset(input: {
   metaSnapshots: MetaSnapshot[];
   funnel: FunnelRow[];
   leadsByUtm: LeadAggRow[];
-  creativeAge: { name: string; age_days: number; status: string }[];
 }): Dataset {
   const totalSpend = input.metaSnapshots.reduce((s, r) => s + (r.spend ?? 0), 0);
   const totalClicks = input.metaSnapshots.reduce((s, r) => s + (r.clicks ?? 0), 0);
@@ -401,7 +378,6 @@ async function askClaudeForRecommendations(
     meta_campaigns_last_14d: dataset.metaSnapshots,
     landing_funnel_last_30d: dataset.funnel,
     leads_created_last_14d_by_utm: dataset.leadsByUtm.slice(0, 25),
-    creative_age: dataset.creativeAge,
   };
 
   const system = `You are the AI CMO for Maco Transport, a Memphis TN trucking company hiring CDL-A drivers. Your job: analyze Facebook ad spend, landing-page funnel data, and lead-creation data to surface 2-4 SPECIFIC, ACTIONABLE recommendations the admin can approve.
@@ -487,18 +463,6 @@ function fallbackRecommendations(dataset: Dataset): Recommendation[] {
         rationale: "Conversion below 5% — fix the page before scaling spend.",
       });
     }
-  }
-
-  // Stale creative
-  const stale = dataset.creativeAge.find((c) => c.status === "approved" && c.age_days > 14);
-  if (stale) {
-    recs.push({
-      action_type: "refresh_creative",
-      priority: "medium",
-      title: `Refresh creative on "${stale.name}" (${stale.age_days} days old)`,
-      description: `Approved creative "${stale.name}" has been running for ${stale.age_days} days. Generate a new variant in the Ad Studio to avoid creative fatigue.`,
-      rationale: "Creative > 14 days typically drops CTR by 20-30%.",
-    });
   }
 
   // High spend, no leads

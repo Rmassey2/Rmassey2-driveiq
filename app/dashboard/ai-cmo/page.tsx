@@ -24,7 +24,6 @@ interface AutonomousAction {
 export default function AiCmoDashboard() {
   const [pendingCount, setPendingCount] = useState(0);
   const [actionsThisMonth, setActionsThisMonth] = useState(0);
-  const [activeCampaigns, setActiveCampaigns] = useState(0);
   const [inboxItems, setInboxItems] = useState<InboxItem[]>([]);
   const [recentActions, setRecentActions] = useState<AutonomousAction[]>([]);
   const [loading, setLoading] = useState(true);
@@ -36,13 +35,6 @@ export default function AiCmoDashboard() {
       const inbox: InboxItem[] = inboxRes.ok ? await inboxRes.json() : [];
       setInboxItems(inbox.slice(0, 5));
       setPendingCount(inbox.length);
-
-      // Fetch campaigns
-      const campaignsRes = await fetch("/api/cmo/campaigns");
-      const campaigns = campaignsRes.ok ? await campaignsRes.json() : [];
-      setActiveCampaigns(
-        campaigns.filter((c: { status: string }) => c.status !== "archived").length
-      );
 
       // Fetch autonomous actions
       const actionsRes = await fetch("/api/cmo/actions");
@@ -79,7 +71,7 @@ export default function AiCmoDashboard() {
       <h1 className="text-2xl font-bold text-white">AI CMO Dashboard</h1>
 
       {/* Stat Cards */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <StatCard
           label="Pending Approvals"
           value={pendingCount}
@@ -88,11 +80,6 @@ export default function AiCmoDashboard() {
         <StatCard
           label="Autonomous Actions (Month)"
           value={actionsThisMonth}
-        />
-        <StatCard
-          label="Active Campaigns"
-          value={activeCampaigns}
-          href="/dashboard/ai-cmo/ads"
         />
         <div className="rounded-lg bg-[#111d33] p-4">
           <p className="text-sm text-gray-400">Google Reviews</p>
@@ -183,16 +170,11 @@ export default function AiCmoDashboard() {
       <MetaCampaignOptimizer />
 
       {/* Quick Nav */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <NavCard
           title="Approval Inbox"
           desc="Review and approve AI-generated content"
           href="/dashboard/ai-cmo/inbox"
-        />
-        <NavCard
-          title="Ad Studio"
-          desc="Generate and manage Facebook ads"
-          href="/dashboard/ai-cmo/ads"
         />
         <NavCard
           title="Content Calendar"

@@ -21,7 +21,6 @@ const navItems: NavItem[] = [
   { label: "Risk Flags", href: "/dashboard/retention/flags", roles: ["admin", "safety", "dm"] },
   { label: "AI CMO", href: "/dashboard/ai-cmo", roles: ["admin"] },
   { label: "CMO Inbox", href: "/dashboard/ai-cmo/inbox", roles: ["admin"] },
-  { label: "Ad Studio", href: "/dashboard/ai-cmo/ads", roles: ["admin"] },
   { label: "Content Calendar", href: "/dashboard/ai-cmo/content", roles: ["admin"] },
   { label: "Reviews", href: "/dashboard/ai-cmo/reviews", roles: ["admin"] },
   { label: "Reports", href: "/dashboard/reports", roles: ["admin"] },
