@@ -33,6 +33,16 @@ export default function LeadSlideOver({ lead, onClose, onUpdated }: Props) {
     notes: "",
   });
 
+  // Inbound SMS reply state — populated by /api/twilio/message-incoming
+  interface InboundMessage {
+    id: string;
+    from_phone: string;
+    body: string | null;
+    forwarded_to_recruiter: boolean;
+    occurred_at: string;
+  }
+  const [messages, setMessages] = useState<InboundMessage[]>([]);
+
   // Drip state
   const [enrollments, setEnrollments] = useState<DripEnrollment[]>([]);
 
@@ -59,6 +69,11 @@ export default function LeadSlideOver({ lead, onClose, onUpdated }: Props) {
     if (res.ok) setCalls(await res.json());
   }, [lead.id]);
 
+  const fetchMessages = useCallback(async () => {
+    const res = await fetch(`/api/leads/messages?lead_id=${lead.id}`);
+    if (res.ok) setMessages(await res.json());
+  }, [lead.id]);
+
   const fetchDrip = useCallback(async () => {
     // We don't have a dedicated drip endpoint yet, but show what we have
     setEnrollments([]);
@@ -66,8 +81,9 @@ export default function LeadSlideOver({ lead, onClose, onUpdated }: Props) {
 
   useEffect(() => {
     fetchCalls();
+    fetchMessages();
     fetchDrip();
-  }, [fetchCalls, fetchDrip]);
+  }, [fetchCalls, fetchMessages, fetchDrip]);
 
   async function saveDetails() {
     setSaving(true);
@@ -425,6 +441,38 @@ export default function LeadSlideOver({ lead, onClose, onUpdated }: Props) {
                     {call.notes && <p className="mt-1 text-sm text-gray-400">{call.notes}</p>}
                     {call.callback_date && (
                       <p className="mt-1 text-xs text-[#c8a951]">Callback: {call.callback_date}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              <div className="space-y-2">
+                <h3 className="text-sm font-medium text-gray-400">
+                  SMS Replies from Driver{" "}
+                  {messages.length > 0 && (
+                    <span className="ml-1 rounded-full bg-[#c8a951]/20 px-2 py-0.5 text-xs text-[#c8a951]">
+                      {messages.length}
+                    </span>
+                  )}
+                </h3>
+                {messages.length === 0 && (
+                  <p className="text-sm text-gray-500">No SMS replies yet</p>
+                )}
+                {messages.map((msg) => (
+                  <div key={msg.id} className="rounded-lg border border-[#c8a951]/30 bg-[#c8a951]/5 p-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-medium text-[#c8a951]">
+                        📱 SMS from {msg.from_phone}
+                      </span>
+                      <span className="text-xs text-gray-500">
+                        {new Date(msg.occurred_at).toLocaleString()}
+                      </span>
+                    </div>
+                    {msg.body && <p className="mt-1 text-sm text-white">{msg.body}</p>}
+                    {!msg.forwarded_to_recruiter && (
+                      <p className="mt-1 text-xs text-yellow-400">
+                        ⚠ Not forwarded to recruiter (SMS forward failed)
+                      </p>
                     )}
                   </div>
                 ))}
